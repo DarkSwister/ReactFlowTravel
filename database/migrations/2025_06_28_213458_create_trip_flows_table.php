@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('trip_flows', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('user_id')->constrained()->onDelete('cascade');
             $table->string('trip_id')->unique();
             $table->string('name');
             $table->text('description')->nullable();

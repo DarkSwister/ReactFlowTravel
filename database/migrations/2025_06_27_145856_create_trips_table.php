@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('trips', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade');
+            $table->foreignUuid('user_id')->nullable()->constrained()->onDelete('cascade');
             $table->string('status')->default('draft'); // draft, published, archived
             $table->json('metadata')->nullable(); // extra trip info
             $table->timestamps();
