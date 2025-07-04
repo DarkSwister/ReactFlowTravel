@@ -4,7 +4,7 @@
 
         /* Projects */
         // "incremental": true,                              /* Save .tsbuildinfo files to allow for incremental compilation of projects. */
-        // "composite": true,                                /* Enable constraints that allow a TypeScript project to be used with project references. */
+         "composite": true,                                /* Enable constraints that allow a TypeScript project to be used with project references. */
         // "tsBuildInfoFile": "./.tsbuildinfo",              /* Specify the path to .tsbuildinfo incremental compilation file. */
         // "disableSourceOfProjectReferenceRedirect": true,  /* Disable preferring source files instead of declaration files when referencing composite projects. */
         // "disableSolutionSearching": true,                 /* Opt a project out of multi-project reference checking when editing. */
@@ -35,7 +35,7 @@
         // "types": [],                                      /* Specify type package names to be included without being referenced in a source file. */
         // "allowUmdGlobalAccess": true,                     /* Allow accessing UMD globals from modules. */
         // "moduleSuffixes": [],                             /* List of file name suffixes to search when resolving a module. */
-        // "allowImportingTsExtensions": true,               /* Allow imports to include TypeScript file extensions. Requires '--moduleResolution bundler' and either '--noEmit' or '--emitDeclarationOnly' to be set. */
+         "allowImportingTsExtensions": true,               /* Allow imports to include TypeScript file extensions. Requires '--moduleResolution bundler' and either '--noEmit' or '--emitDeclarationOnly' to be set. */
         // "rewriteRelativeImportExtensions": true,          /* Rewrite '.ts', '.tsx', '.mts', and '.cts' file extensions in relative import paths to their JavaScript equivalent in output files. */
         // "resolvePackageJsonExports": true,                /* Use the package.json 'exports' field when resolving package imports. */
         // "resolvePackageJsonImports": true,                /* Use the package.json 'imports' field when resolving imports. */
@@ -83,8 +83,8 @@
         "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
 
         /* Type Checking */
-        "strict": true /* Enable all strict type-checking options. */,
-        "noImplicitAny": true /* Enable error reporting for expressions and declarations with an implied 'any' type. */,
+        "strict": false /* Enable all strict type-checking options. */,
+        "noImplicitAny": false /* Enable error reporting for expressions and declarations with an implied 'any' type. */,
         // "strictNullChecks": true,                         /* When type checking, take into account 'null' and 'undefined'. */
         // "strictFunctionTypes": true,                      /* When assigning functions, check to ensure parameters and the return values are subtype-compatible. */
         // "strictBindCallApply": true,                      /* Check that the arguments for 'bind', 'call', and 'apply' methods match the original function. */

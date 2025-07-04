@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'skyscanner' => [
+        'key' => env('SKYSCANNER_API_KEY'),
+        'url' => env('SKYSCANNER_API_URL', 'https://skyscanner80.p.rapidapi.com'),
+    ],
+
 ];
