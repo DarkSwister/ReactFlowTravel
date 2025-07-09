@@ -1,9 +1,17 @@
 import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
-import Flow from '@/components/flow/Flow.js';
+import { travelFlowConfig } from '@/slices/travel';
+import { Flow } from '@/shared/ui/Flow.tsx';
 
 export default function Welcome() {
     const { auth } = usePage<SharedData>().props;
+
+    const previewConfig = {
+        ...travelFlowConfig,
+        showMiniMap: false,
+        allowNodeDeletion: true,
+        height: '700px',
+    };
 
     return (
         <>
@@ -12,39 +20,13 @@ export default function Welcome() {
                 <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
             </Head>
             <div
-                className="flex min-h-screen flex-col items-center bg-[#FDFDFC] p-6 text-[#1b1b18] lg:justify-center lg:p-8 dark:bg-[#0a0a0a]">
-                {/*<header className="mb-6 w-full max-w-[335px] text-sm not-has-[nav]:hidden lg:max-w-4xl">*/}
-                {/*    <nav className="flex items-center justify-end gap-4">*/}
-                {/*        {auth.user ? (*/}
-                {/*            <Link*/}
-                {/*                href={route('dashboard')}*/}
-                {/*                className="inline-block rounded-sm border border-[#19140035] px-5 py-1.5 text-sm leading-normal text-[#1b1b18] hover:border-[#1915014a] dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b]"*/}
-                {/*            >*/}
-                {/*                Dashboard*/}
-                {/*            </Link>*/}
-                {/*        ) : (*/}
-                {/*            <>*/}
-                {/*                <Link*/}
-                {/*                    href={route('login')}*/}
-                {/*                    className="inline-block rounded-sm border border-transparent px-5 py-1.5 text-sm leading-normal text-[#1b1b18] hover:border-[#19140035] dark:text-[#EDEDEC] dark:hover:border-[#3E3E3A]"*/}
-                {/*                >*/}
-                {/*                    Log in*/}
-                {/*                </Link>*/}
-                {/*                <Link*/}
-                {/*                    href={route('register')}*/}
-                {/*                    className="inline-block rounded-sm border border-[#19140035] px-5 py-1.5 text-sm leading-normal text-[#1b1b18] hover:border-[#1915014a] dark:border-[#3E3E3A] dark:text-[#EDEDEC] dark:hover:border-[#62605b]"*/}
-                {/*                >*/}
-                {/*                    Register*/}
-                {/*                </Link>*/}
-                {/*            </>*/}
-                {/*        )}*/}
-                {/*    </nav>*/}
-                {/*</header>*/}
-                <div className="flex-1 w-full px-6 pb-6 lg:px-8 lg:pb-8">
-                    <div className="w-full h-full min-h-[800px]">
-                        <Flow />
-                    </div>
+                className="flex min-h-screen flex-col items-center bg-[#FDFDFC] p-2 text-[#1b1b18] lg:justify-center  dark:bg-[#0a0a0a]">
+
+                <div className="w-full max-w-7xl bg-white dark:bg-gray-900 rounded-lg shadow-sm border overflow-hidden">
+                    <Flow config={previewConfig} />
                 </div>
+
+
             </div>
         </>
     );
