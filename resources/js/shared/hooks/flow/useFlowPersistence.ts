@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
-import { useFlowStore } from '@/app/store/flowStore';
+import { useFlowStore } from '@/app/store/flowStore.ts';
 import { type SharedData } from '@/types';
 
 interface UseFlowPersistenceOptions {

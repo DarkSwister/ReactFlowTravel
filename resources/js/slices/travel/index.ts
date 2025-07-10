@@ -1,9 +1,10 @@
-import { registerNode, registerModal, getAvailableNodes } from '@/shared/lib/react-flow/nodeRegistry';
+import { registerNode, registerModal } from '@/shared/lib/react-flow/nodeRegistry';
 import FlightNode from '@/shared/nodes/FlightNode';
 import BookingNode from '@/shared/nodes/BookingNode';
 import GroupNode from '@/shared/nodes/GroupNode';
 import { FlightModal } from './ui/FlightModal';
 import { BookingModal } from './ui/BookingModal';
+import { createBaseFlowConfig } from '@/shared/config/flowConfigs';
 
 // Self-register nodes with metadata
 registerNode('travel:flight', FlightNode, {
@@ -15,8 +16,8 @@ registerNode('travel:flight', FlightNode, {
         flightNumber: '',
         departure: '',
         arrival: '',
-        price: 0,
-        currency: 'EUR'
+        price: 500,
+        priceRange: { min: 100, max: 10000, currency: 'EUR' } // Add this
     }
 });
 
@@ -45,20 +46,4 @@ registerNode('travel:group', GroupNode, {
 // Register wizards
 registerModal('travel:flight', FlightModal);
 registerModal('travel:booking', BookingModal);
-
-// Export auto-generated config
-export const travelFlowConfig = {
-    showToolbar: true,
-    showControls: true,
-    showMiniMap: true,
-    showBackground: true,
-    allowNodeCreation: true,
-    allowNodeEditing: true,
-    allowNodeDeletion: true,
-    allowUndo: true,
-    fitView: true,
-    // Auto-generated from registry
-    availableNodes: getAvailableNodes('travel'),
-    enableDragAndDrop: true,
-};
 

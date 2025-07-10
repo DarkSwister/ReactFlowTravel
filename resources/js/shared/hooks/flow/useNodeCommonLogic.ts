@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useFlowStore } from '@/app/store/flowStore';
+import { useFlowStore } from '@/app/store/flowStore.ts';
 
 interface PriceRange {
     min: number;

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Settings, Hotel, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useNodeCommonLogic } from '@/shared/hooks/useNodeCommonLogic';
+import { useNodeCommonLogic } from '@/shared/hooks/flow/useNodeCommonLogic.ts';
 import { NodePriceSlider } from '@/shared/components/NodePriceSlider';
 
 interface BookingNodeProps {
