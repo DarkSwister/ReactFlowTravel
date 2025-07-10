@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 
 import { getSliceConfig } from '@/shared/config/sliceConfigs';
 import { useFlowCanvas } from '@/shared/hooks/flow/useFlowCanvas';
-import { getNodeTypes } from '@/shared/lib/react-flow/nodeRegistry';
+import { STABLE_NODE_TYPES } from '@/shared/lib/react-flow/nodeTypes'; // Import stable nodeTypes
 import { FlowConfig } from '@/shared/types/flowConfig';
 import { UniversalModal } from '@/shared/ui/UniversalModal';
 import { type SharedData } from '@/types';
@@ -18,17 +18,17 @@ interface FlowCanvasProps {
     slice?: string;
     configOverrides?: Partial<FlowConfig>;
     children?: React.ReactNode;
-    useStore?: boolean; // ✅ Add store toggle
+    useStore?: boolean;
 }
 
-// ✅ Store-based implementation (your current approach)
+// ✅ Store-based implementation
 const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slice = 'travel', configOverrides = {}, children }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
     const isAuthorized = useMemo(() => !!auth.user, [auth.user]);
 
-    const { config, nodes, edges, nodeTypes, handlers, modal, isEmpty } = useFlowCanvas({
+    const { config, nodes, edges, handlers, modal, isEmpty } = useFlowCanvas({
         slice,
         configOverrides,
         isAuthorized,
@@ -40,7 +40,7 @@ const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slic
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
-                nodeTypes={nodeTypes}
+                nodeTypes={STABLE_NODE_TYPES} // ✅ Use completely stable nodeTypes
                 onNodesChange={handlers.onNodesChange}
                 onEdgesChange={handlers.onEdgesChange}
                 onConnect={handlers.onConnect}
@@ -71,41 +71,32 @@ const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slic
     );
 };
 
-// ✅ Store-free implementation using ReactFlow's built-in state
+// ✅ Store-free implementation
 const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slice = 'travel', configOverrides = {}, children }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
-    // ✅ ReactFlow built-in state management
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-    // ✅ Local modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalNodeId, setModalNodeId] = useState<string | null>(null);
     const [modalNodeType, setModalNodeType] = useState<string | null>(null);
 
     const isAuthorized = useMemo(() => !!auth.user, [auth.user]);
 
-    // ✅ Get config without store
     const config = useMemo(() => {
         const sliceConfig = getSliceConfig(slice, isAuthorized);
         return { ...sliceConfig, ...configOverrides };
     }, [slice, isAuthorized, configOverrides]);
 
-    const nodeTypes = useMemo(() => getNodeTypes(), []);
-
-    // ✅ Local handlers
     const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
     const handleAddNode = useCallback(
         (
             nodeType: string,
             defaultData: any = {},
-            position?: {
-                x: number;
-                y: number;
-            },
+            position?: { x: number; y: number },
         ) => {
             if (!config.allowNodeCreation) return;
 
@@ -153,7 +144,6 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
         setEdges([]);
     }, [setNodes, setEdges]);
 
-    // ✅ Drag and drop handlers
     const onDragOver = useCallback(
         (event: React.DragEvent) => {
             if (!config?.enableDragAndDrop) return;
@@ -185,7 +175,6 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
         [config?.enableDragAndDrop, config?.availableNodes, handleAddNode],
     );
 
-    // ✅ Create handlers object for toolbar
     const handlers = useMemo(
         () => ({
             onNodesChange,
@@ -215,7 +204,7 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
-                nodeTypes={nodeTypes}
+                nodeTypes={STABLE_NODE_TYPES} // ✅ Use completely stable nodeTypes
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -247,7 +236,6 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
 };
 
 export const FlowCanvas: React.FC<FlowCanvasProps> = ({ slice = 'travel', configOverrides = {}, children, useStore = true }) => {
-    console.log(useStore);
     return useStore ? (
         <FlowCanvasWithStore slice={slice} configOverrides={configOverrides}>
             {children}

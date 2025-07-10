@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
 import { useFlowStore } from '@/app/store/flowStore.ts';
 import { type SharedData } from '@/types';
@@ -11,6 +11,7 @@ export const useFlowPersistence = (options: UseFlowPersistenceOptions = {}) => {
     const { onDataExpired } = options;
     const { auth } = usePage<SharedData>().props;
     const { clearLocalData, setUserId } = useFlowStore();
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const isAuthenticated = !!auth.user;
     const userId = auth.user?.id?.toString() || null;
@@ -36,18 +37,30 @@ export const useFlowPersistence = (options: UseFlowPersistenceOptions = {}) => {
             if (stored) {
                 const data = JSON.parse(stored);
                 const persistedData = data.state;
+
+                // Check if timestamp exists
+                if (!persistedData.timestamp) {
+                    return;
+                }
+
                 const now = Date.now();
                 const UNAUTHORIZED_EXPIRY = 30 * 60 * 1000; // 30 minutes
-                const AUTHORIZED_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
+                // No expiry for authorized users
 
                 const isAuthorized = persistedData.userId && persistedData.userId !== 'anonymous';
-                const expiryTime = isAuthorized ? AUTHORIZED_EXPIRY : UNAUTHORIZED_EXPIRY;
 
-                if (now - persistedData.timestamp > expiryTime) {
-                    localStorage.removeItem('flow-diagram-storage');
-                    clearLocalData();
-                    onDataExpired?.();
+                // Only check expiry for unauthorized users
+                if (!isAuthorized) {
+                    const timeDiff = now - persistedData.timestamp;
+
+                    if (timeDiff > UNAUTHORIZED_EXPIRY) {
+                        console.log('Unauthorized data expired, clearing...');
+                        localStorage.removeItem('flow-diagram-storage');
+                        clearLocalData();
+                        onDataExpired?.();
+                    }
                 }
+                // Authorized users' data never expires, so we don't check
             }
         } catch (error) {
             console.error('Error checking data expiration:', error);
@@ -56,12 +69,25 @@ export const useFlowPersistence = (options: UseFlowPersistenceOptions = {}) => {
 
     // Check for expired data on mount and periodically
     useEffect(() => {
+        // Run immediately
         cleanupExpiredData();
 
-        // Check every 5 minutes for expired data
-        const interval = setInterval(cleanupExpiredData, 5 * 60 * 1000);
+        // Clear any existing interval
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+        }
 
-        return () => clearInterval(interval);
+        // Set up new interval - check every 5 minutes
+        intervalRef.current = setInterval(() => {
+            cleanupExpiredData();
+        }, 5 * 60 * 1000);
+
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
     }, [cleanupExpiredData]);
 
     return {

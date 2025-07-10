@@ -52,14 +52,6 @@ interface HistoryState {
     nodes: Node[];
     edges: Edge[];
 }
-
-interface PersistedData {
-    nodes: Node[];
-    edges: Edge[];
-    timestamp: number;
-    userId?: string | null;
-}
-
 export interface NodeData extends Record<string, unknown> {
     label?: string;
     [key: string]: unknown;
@@ -107,17 +99,61 @@ export interface FlowState {
     isValidSelection: () => boolean;
     getGraphSize: () => number;
     resetFlow: () => void;
+    resetTimestamp: () => void;
 }
+
+
+const TIMESTAMP_KEY = 'flow-diagram-timestamp';
+const USER_ID_KEY = 'flow-user-id';
+
+const getFlowTimestamp = (): number | null => {
+    try {
+        const timestamp = localStorage.getItem(TIMESTAMP_KEY);
+        return timestamp ? parseInt(timestamp, 10) : null;
+    } catch {
+        return null;
+    }
+};
+
+const setFlowTimestamp = (timestamp: number) => {
+    try {
+        localStorage.setItem(TIMESTAMP_KEY, timestamp.toString());
+        console.log('🕐 Set flow timestamp:', new Date(timestamp).toLocaleString());
+    } catch (error) {
+        console.error('Error setting flow timestamp:', error);
+    }
+};
+
+const initializeFlowTimestamp = () => {
+    const existing = getFlowTimestamp();
+    if (!existing) {
+        const now = Date.now();
+        setFlowTimestamp(now);
+        console.log('🆕 Initialized new flow timestamp:', new Date(now).toLocaleString());
+        return now;
+    }
+    console.log('✅ Using existing flow timestamp:', new Date(existing).toLocaleString());
+    return existing;
+};
+
+const clearFlowTimestamp = () => {
+    try {
+        localStorage.removeItem(TIMESTAMP_KEY);
+        console.log('🗑️ Cleared flow timestamp');
+    } catch (error) {
+        console.error('Error clearing flow timestamp:', error);
+    }
+};
+
 
 // Fixed storage implementation
 const createExpiringStorage = () => {
-    const UNAUTHORIZED_EXPIRY = 30 * 60 * 1000;
-    const AUTHORIZED_EXPIRY = 7 * 24 * 60 * 60 * 1000;
+    const UNAUTHORIZED_EXPIRY = 30 * 60 * 1000; // 30 minutes
     const MAX_STORAGE_SIZE = 5 * 1024 * 1024;
 
     const getUserId = (): string | null => {
         try {
-            return localStorage.getItem('flow-user-id');
+            return localStorage.getItem(USER_ID_KEY);
         } catch {
             return null;
         }
@@ -126,40 +162,53 @@ const createExpiringStorage = () => {
     const setUserIdInStorage = (userId: string | null) => {
         try {
             if (userId) {
-                localStorage.setItem('flow-user-id', userId);
+                localStorage.setItem(USER_ID_KEY, userId);
             } else {
-                localStorage.removeItem('flow-user-id');
+                localStorage.removeItem(USER_ID_KEY);
             }
         } catch (error) {
             console.error('Error setting userId in localStorage:', error);
         }
     };
 
+    const checkExpiry = (): boolean => {
+        const timestamp = getFlowTimestamp();
+        const userId = getUserId();
+
+        if (!timestamp) return false;
+
+        const isAuthorized = userId && userId !== 'anonymous';
+        if (isAuthorized) return false; // Never expire for authorized users
+
+        const now = Date.now();
+        const isExpired = (now - timestamp) > UNAUTHORIZED_EXPIRY;
+
+        if (isExpired) {
+            console.log('⏰ Flow data expired');
+        }
+
+        return isExpired;
+    };
+
+
     return {
         getItem: (name: string) => {
             try {
-                const item = localStorage.getItem(name);
-                if (!item) return null;
-
-                const data = JSON.parse(item);
-                const persistedData: PersistedData = data.state;
-                const now = Date.now();
-                const userId = getUserId();
-
-                const isAuthorized = userId && userId !== 'anonymous';
-                const expiryTime = isAuthorized ? AUTHORIZED_EXPIRY : UNAUTHORIZED_EXPIRY;
-
-                if (now - persistedData.timestamp > expiryTime) {
+                // Check expiry first
+                if (checkExpiry()) {
                     localStorage.removeItem(name);
+                    clearFlowTimestamp();
                     return null;
                 }
 
-                if (persistedData.userId !== userId) {
-                    data.state.userId = userId;
-                    localStorage.setItem(name, JSON.stringify(data));
+                const item = localStorage.getItem(name);
+                if (!item) return null;
+
+                // Initialize timestamp if it doesn't exist
+                if (!getFlowTimestamp()) {
+                    initializeFlowTimestamp();
                 }
 
-                // Return the raw JSON string, don't double-stringify
                 return item;
             } catch (error) {
                 console.error('Error reading from localStorage:', error);
@@ -168,11 +217,16 @@ const createExpiringStorage = () => {
         },
         setItem: (name: string, value: string) => {
             try {
-                // Use accurate byte size calculation
                 if (getByteSize(value) > MAX_STORAGE_SIZE) {
                     console.warn('Storage data exceeds size limit, clearing old data');
                     localStorage.removeItem(name);
+                    clearFlowTimestamp();
                     return;
+                }
+
+                // Initialize timestamp if this is the first save
+                if (!getFlowTimestamp()) {
+                    initializeFlowTimestamp();
                 }
 
                 const data = JSON.parse(value);
@@ -180,7 +234,11 @@ const createExpiringStorage = () => {
 
                 if (data.state) {
                     data.state.userId = userId;
-                    data.state.timestamp = Date.now();
+                    // Don't store timestamp in the main data - it's managed separately
+                }
+
+                if (!getFlowTimestamp()) {
+                    initializeFlowTimestamp();
                 }
 
                 localStorage.setItem(name, JSON.stringify(data));
@@ -191,11 +249,13 @@ const createExpiringStorage = () => {
         removeItem: (name: string) => {
             try {
                 localStorage.removeItem(name);
+                clearFlowTimestamp();
             } catch (error) {
                 console.error('Error removing from localStorage:', error);
             }
         },
         setUserId: setUserIdInStorage,
+        clearFlowTimestamp,
     };
 };
 
@@ -304,10 +364,9 @@ const useFlowStore = create<FlowState>()(
 
             addNode: (node: Node) => {
                 get().saveToHistory();
-                set((state) => ({
-                    nodes: [...state.nodes, node],
-                    lastModified: Date.now(),
-                }));
+                set({
+                    nodes: [...get().nodes, node],
+                });
             },
 
             updateNodeData: <T extends NodeData = NodeData>(nodeId: string, data: Partial<T>) => {
@@ -458,6 +517,7 @@ const useFlowStore = create<FlowState>()(
             },
 
             clearLocalData: () => {
+                clearFlowTimestamp(); // Clear the separate timestamp
                 set({
                     nodes: [],
                     edges: [],
@@ -494,6 +554,8 @@ const useFlowStore = create<FlowState>()(
                         }
                         : state.history;
 
+                    clearFlowTimestamp();
+
                     return {
                         ...state,
                         nodes: [],
@@ -508,18 +570,35 @@ const useFlowStore = create<FlowState>()(
                 });
             },
 
+            resetTimestamp: () => {
+                console.log('resetTimestamp called');
+                clearFlowTimestamp();
+                // If there's current data, reinitialize timestamp
+                const { nodes, edges } = get();
+                if (nodes.length > 0 || edges.length > 0) {
+                    initializeFlowTimestamp();
+                }
+            },
         }),
+
+
         {
             name: 'flow-diagram-storage',
             storage: createJSONStorage(() => storage),
-            partialize: (state) => ({
-                nodes: state.nodes,
-                edges: state.edges,
-                timestamp: Date.now(),
-                userId: state.userId,
-            }),
+            partialize: (state) => {
+                return {
+                    nodes: state.nodes,
+                    edges: state.edges,
+                    userId: state.userId,
+                };
+            },
             skipHydration: false,
             onRehydrateStorage: () => (state) => {
+                if (state && (state.nodes?.length > 0 || state.edges?.length > 0)) {
+                    initializeFlowTimestamp();
+                }
+
+
                 if (state) {
                     state.nodes = state.nodes || [];
                     state.edges = state.edges || [];
@@ -550,72 +629,12 @@ export { useFlowStore };
 export const useNodes = (): Node[] => useFlowStore((state) => state.nodes, shallow);
 export const useEdges = (): Edge[] => useFlowStore((state) => state.edges, shallow);
 
-export const useSelectedNodeId = () => useFlowStore((state) => state.selectedNodeId);
-export const useSelectedNode = () => useFlowStore((state) => {
-    const { nodes, selectedNodeId } = state;
-    return selectedNodeId ? nodes.find(node => node.id === selectedNodeId) || null : null;
-}, shallow);
-
 export const useIsModalOpen = () => useFlowStore((state) => state.isModalOpen);
 export const useModalNodeId = () => useFlowStore((state) => state.modalNodeId);
 export const useModalNodeType = () => useFlowStore((state) => state.modalNodeType);
-export const useModalNode = () => useFlowStore((state) => {
-    const { nodes, modalNodeId } = state;
-    return modalNodeId ? nodes.find(node => node.id === modalNodeId) || null : null;
-}, shallow);
-
 export const useUndo = () => useFlowStore((state) => state.undo);
 export const useRedo = () => useFlowStore((state) => state.redo);
 export const useCanUndo = () => useFlowStore((state) => state.canUndo());
 export const useCanRedo = () => useFlowStore((state) => state.canRedo());
 
-export const useHistoryActions = () => useFlowStore((state) => ({
-    undo: state.undo,
-    redo: state.redo,
-    canUndo: state.canUndo(),
-    canRedo: state.canRedo(),
-}), shallow);
-
-export const useFlowActions = () => useFlowStore((state) => ({
-    addNode: state.addNode,
-    updateNodeData: state.updateNodeData,
-    updateNodeDataAndSave: state.updateNodeDataAndSave,
-    deleteNode: state.deleteNode,
-    onNodesChange: state.onNodesChange,
-    onEdgesChange: state.onEdgesChange,
-    onConnect: state.onConnect,
-}), shallow);
-
-export const useModalActions = () => useFlowStore((state) => ({
-    openNodeModal: state.openNodeModal,
-    closeModal: state.closeModal,
-}), shallow);
-
-export const useSelectionActions = () => useFlowStore((state) => ({
-    setSelectedNodeId: state.setSelectedNodeId,
-    isValidSelection: state.isValidSelection,
-}), shallow);
-
-export const useUserId = () => useFlowStore((state) => state.userId);
-export const useGraphSize = () => useFlowStore((state) => state.getGraphSize());
-
-export const useNodeById = (nodeId: string | null) => useFlowStore((state) =>
-        nodeId ? state.nodes.find(node => node.id === nodeId) || null : null
-    , shallow);
-
-export const useEdgesByNodeId = (nodeId: string | null) => useFlowStore((state) =>
-        nodeId ? state.edges.filter(edge => edge.source === nodeId || edge.target === nodeId) : []
-    , shallow);
-
-export const useIsNodeSelected = (nodeId: string) => useFlowStore((state) =>
-    state.selectedNodeId === nodeId
-);
-
-export const useStoreStats = () => useFlowStore((state) => ({
-    nodeCount: state.nodes.length,
-    edgeCount: state.edges.length,
-    historySize: state.history.past.length + state.history.future.length + 1,
-    storageSize: state.getGraphSize(),
-    hasValidSelection: state.isValidSelection(),
-}), shallow);
 

@@ -24,7 +24,6 @@ export default function Welcome() {
                     <Flow
                         slice="travel"
                         configOverrides={flowConfig}
-                        useStore={false}
                     />
                 </div>
 

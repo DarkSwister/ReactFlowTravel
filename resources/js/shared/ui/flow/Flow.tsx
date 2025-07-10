@@ -21,10 +21,6 @@ const FlowWithProviders: React.FC<FlowProps> = (props) => (
 );
 
 export const Flow: React.FC<FlowProps> = (props) => {
-    if (process.env.NODE_ENV === 'development') {
-        console.log('Flow render', props);
-    }
-
     return (
         <ReactFlowProvider>
             <FlowWithProviders {...props} />

@@ -1,4 +1,4 @@
-import { ComponentType } from 'react';
+import React, { ComponentType } from 'react';
 
 interface NodeMetadata {
     component: ComponentType<any>;
@@ -11,6 +11,10 @@ interface NodeMetadata {
 
 const nodeRegistry = new Map<string, NodeMetadata>();
 const modalRegistry = new Map<string, React.ComponentType<any>>();
+
+// ✅ Declare cache variables first
+let cachedNodeTypes: Record<string, ComponentType<any>> | null = null;
+let registryVersion = 0;
 
 export function registerNode(
     type: string,
@@ -27,6 +31,10 @@ export function registerNode(
         component,
         ...metadata
     });
+
+    // Invalidate cache when registry changes
+    cachedNodeTypes = null;
+    registryVersion++;
 }
 
 export function registerModal(type: string, component: ComponentType<any>) {
@@ -36,14 +44,26 @@ export function registerModal(type: string, component: ComponentType<any>) {
     const existingMetadata = nodeRegistry.get(type);
     if (existingMetadata) {
         nodeRegistry.set(type, { ...existingMetadata, hasModal: true });
+
+        // Invalidate cache when registry changes
+        cachedNodeTypes = null;
+        registryVersion++;
     }
 }
 
 export function getNodeTypes() {
+    // Return cached version if available
+    if (cachedNodeTypes) {
+        return cachedNodeTypes;
+    }
+
+    // Create new types object and cache it
     const types: Record<string, ComponentType<any>> = {};
     nodeRegistry.forEach((metadata, type) => {
         types[type] = metadata.component;
     });
+
+    cachedNodeTypes = types;
     return types;
 }
 
@@ -82,4 +102,12 @@ export function getAvailableNodes(category?: string) {
     });
 
     return nodes;
+}
+
+export function getRegistryVersion() {
+    return registryVersion;
+}
+
+export function clearNodeTypesCache() {
+    cachedNodeTypes = null;
 }

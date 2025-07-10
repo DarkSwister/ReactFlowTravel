@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useFlowPersistence } from './useFlowPersistence';
 import { useFlowConfig } from './useFlowConfig';
 import { useFlowState } from './useFlowState';
@@ -30,7 +30,8 @@ export const useFlowCanvas = ({
     const handlers = useFlowHandlers(config, actions, reactFlowWrapper);
     const modal = useFlowModal();
 
-    const nodeTypes = useMemo(() => getNodeTypes(), []);
+    // getNodeTypes() is cached internally, so we can call it directly
+    const nodeTypes = getNodeTypes();
     const isEmpty = nodes.length === 0;
 
     return {
