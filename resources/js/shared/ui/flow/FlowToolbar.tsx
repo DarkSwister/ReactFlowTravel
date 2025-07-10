@@ -23,7 +23,12 @@ export const FlowToolbar: React.FC<FlowToolbarProps> = ({ config, handlers }) =>
         typeof handlers.actions.undo === 'function' &&
         typeof handlers.actions.redo === 'function';
 
-    const hasResetFlow = handlers.resetFlow && typeof handlers.resetFlow === 'function';
+    // ✅ Check for resetFlow in both locations (store vs store-free)
+    const hasResetFlow = (handlers.actions && typeof handlers.actions.resetFlow === 'function') ||
+        (handlers.resetFlow && typeof handlers.resetFlow === 'function');
+
+    // ✅ Get resetFlow from the correct location
+    const resetFlowHandler = handlers.actions?.resetFlow || handlers.resetFlow;
 
     // ✅ Handle different handler structures (store vs store-free)
     const handleAddNode = handlers.handleAddNode || handlers.addNode;
@@ -81,7 +86,7 @@ export const FlowToolbar: React.FC<FlowToolbarProps> = ({ config, handlers }) =>
 
                 {hasResetFlow && (
                     <Button
-                        onClick={handlers.resetFlow}
+                        onClick={resetFlowHandler} // ✅ Use the correct resetFlow handler
                         size="sm"
                         variant="ghost"
                         title="Reset Flow"

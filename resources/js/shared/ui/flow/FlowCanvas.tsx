@@ -1,8 +1,10 @@
 import { usePage } from '@inertiajs/react';
-import { ReactFlow, useNodesState, useEdgesState, addEdge } from '@xyflow/react';
-import React, { useRef, useMemo, useCallback, useState } from 'react';
+import { addEdge, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 
+import { getSliceConfig } from '@/shared/config/sliceConfigs';
 import { useFlowCanvas } from '@/shared/hooks/flow/useFlowCanvas';
+import { getNodeTypes } from '@/shared/lib/react-flow/nodeRegistry';
 import { FlowConfig } from '@/shared/types/flowConfig';
 import { UniversalModal } from '@/shared/ui/UniversalModal';
 import { type SharedData } from '@/types';
@@ -11,8 +13,6 @@ import { FlowControls } from './FlowControls';
 import { FlowEmptyState } from './FlowEmptyState';
 import { FlowMiniMap } from './FlowMiniMap';
 import { FlowToolbar } from './FlowToolbar';
-import { getSliceConfig } from '@/shared/config/sliceConfigs';
-import { getNodeTypes } from '@/shared/lib/react-flow/nodeRegistry';
 
 interface FlowCanvasProps {
     slice?: string;
@@ -22,15 +22,9 @@ interface FlowCanvasProps {
 }
 
 // ✅ Store-based implementation (your current approach)
-const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({
-                                                                              slice = 'travel',
-                                                                              configOverrides = {},
-                                                                              children
-                                                                          }) => {
+const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slice = 'travel', configOverrides = {}, children }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-
-    console.log('FlowCanvas render count (with store):');
 
     const isAuthorized = useMemo(() => !!auth.user, [auth.user]);
 
@@ -78,15 +72,9 @@ const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({
 };
 
 // ✅ Store-free implementation using ReactFlow's built-in state
-const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({
-                                                                                 slice = 'travel',
-                                                                                 configOverrides = {},
-                                                                                 children
-                                                                             }) => {
+const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slice = 'travel', configOverrides = {}, children }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
-
-    console.log('FlowCanvas render count (without store):');
 
     // ✅ ReactFlow built-in state management
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -108,41 +96,51 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({
     const nodeTypes = useMemo(() => getNodeTypes(), []);
 
     // ✅ Local handlers
-    const onConnect = useCallback(
-        (params) => setEdges((eds) => addEdge(params, eds)),
-        [setEdges]
+    const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+
+    const handleAddNode = useCallback(
+        (
+            nodeType: string,
+            defaultData: any = {},
+            position?: {
+                x: number;
+                y: number;
+            },
+        ) => {
+            if (!config.allowNodeCreation) return;
+
+            const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const newNode = {
+                id,
+                type: nodeType,
+                position: position || {
+                    x: Math.random() * 400 + 100,
+                    y: Math.random() * 300 + 100,
+                },
+                data: {
+                    label: `New ${nodeType.split(':')[1] || 'Node'}`,
+                    timestamp: new Date().toLocaleString(),
+                    ...defaultData,
+                },
+            };
+
+            setNodes((nds) => [...nds, newNode]);
+        },
+        [config.allowNodeCreation, setNodes],
     );
 
-    const handleAddNode = useCallback((nodeType: string, defaultData: any = {}, position?: { x: number; y: number }) => {
-        if (!config.allowNodeCreation) return;
-
-        const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newNode = {
-            id,
-            type: nodeType,
-            position: position || {
-                x: Math.random() * 400 + 100,
-                y: Math.random() * 300 + 100,
-            },
-            data: {
-                label: `New ${nodeType.split(':')[1] || 'Node'}`,
-                timestamp: new Date().toLocaleString(),
-                ...defaultData,
-            },
-        };
-
-        setNodes((nds) => [...nds, newNode]);
-    }, [config.allowNodeCreation, setNodes]);
-
-    const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
-        if (config?.onNodeClick) {
-            config.onNodeClick(node.id, node.type);
-        } else if (config?.allowNodeEditing) {
-            setModalNodeId(node.id);
-            setModalNodeType(node.type);
-            setIsModalOpen(true);
-        }
-    }, [config]);
+    const handleNodeClick = useCallback(
+        (event: React.MouseEvent, node: any) => {
+            if (config?.onNodeClick) {
+                config.onNodeClick(node.id, node.type);
+            } else if (config?.allowNodeEditing) {
+                setModalNodeId(node.id);
+                setModalNodeType(node.type);
+                setIsModalOpen(true);
+            }
+        },
+        [config],
+    );
 
     const closeModal = useCallback(() => {
         setIsModalOpen(false);
@@ -156,49 +154,61 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({
     }, [setNodes, setEdges]);
 
     // ✅ Drag and drop handlers
-    const onDragOver = useCallback((event: React.DragEvent) => {
-        if (!config?.enableDragAndDrop) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-    }, [config?.enableDragAndDrop]);
+    const onDragOver = useCallback(
+        (event: React.DragEvent) => {
+            if (!config?.enableDragAndDrop) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        },
+        [config?.enableDragAndDrop],
+    );
 
-    const onDrop = useCallback((event: React.DragEvent) => {
-        if (!config?.enableDragAndDrop) return;
-        event.preventDefault();
+    const onDrop = useCallback(
+        (event: React.DragEvent) => {
+            if (!config?.enableDragAndDrop) return;
+            event.preventDefault();
 
-        const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
-        if (reactFlowBounds) {
-            const position = {
-                x: event.clientX - reactFlowBounds.left,
-                y: event.clientY - reactFlowBounds.top,
-            };
+            const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
+            if (reactFlowBounds) {
+                const position = {
+                    x: event.clientX - reactFlowBounds.left,
+                    y: event.clientY - reactFlowBounds.top,
+                };
 
-            const nodeType = event.dataTransfer.getData('application/reactflow');
-            if (nodeType) {
-                const nodeConfig = config.availableNodes?.find((node) => node.type === nodeType);
-                handleAddNode(nodeType, nodeConfig?.defaultData || {}, position);
+                const nodeType = event.dataTransfer.getData('application/reactflow');
+                if (nodeType) {
+                    const nodeConfig = config.availableNodes?.find((node) => node.type === nodeType);
+                    handleAddNode(nodeType, nodeConfig?.defaultData || {}, position);
+                }
             }
-        }
-    }, [config?.enableDragAndDrop, config?.availableNodes, handleAddNode]);
+        },
+        [config?.enableDragAndDrop, config?.availableNodes, handleAddNode],
+    );
 
     // ✅ Create handlers object for toolbar
-    const handlers = useMemo(() => ({
-        onNodesChange,
-        onEdgesChange,
-        onConnect,
-        onDrop,
-        onDragOver,
-        onNodeClick: handleNodeClick,
-        addNode: handleAddNode,
-        resetFlow,
-    }), [onNodesChange, onEdgesChange, onConnect, onDrop, onDragOver, handleNodeClick, handleAddNode, resetFlow]);
+    const handlers = useMemo(
+        () => ({
+            onNodesChange,
+            onEdgesChange,
+            onConnect,
+            onDrop,
+            onDragOver,
+            onNodeClick: handleNodeClick,
+            addNode: handleAddNode,
+            resetFlow,
+        }),
+        [onNodesChange, onEdgesChange, onConnect, onDrop, onDragOver, handleNodeClick, handleAddNode, resetFlow],
+    );
 
-    const modal = useMemo(() => ({
-        isOpen: isModalOpen,
-        nodeId: modalNodeId,
-        nodeType: modalNodeType,
-        onClose: closeModal,
-    }), [isModalOpen, modalNodeId, modalNodeType, closeModal]);
+    const modal = useMemo(
+        () => ({
+            isOpen: isModalOpen,
+            nodeId: modalNodeId,
+            nodeType: modalNodeType,
+            onClose: closeModal,
+        }),
+        [isModalOpen, modalNodeId, modalNodeType, closeModal],
+    );
 
     return (
         <div className={`relative ${config.className || ''}`} style={{ height: config.height || '100%' }} ref={reactFlowWrapper}>
@@ -230,33 +240,20 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({
                 {children}
             </ReactFlow>
 
-            {nodes.length === 0 && (
-                <FlowEmptyState show={true} config={config} />
-            )}
+            {nodes.length === 0 && <FlowEmptyState show={true} config={config} />}
             <UniversalModal {...modal} />
         </div>
     );
 };
 
-export const FlowCanvas: React.FC<FlowCanvasProps> = ({
-                                                          slice = 'travel',
-                                                          configOverrides = {},
-                                                          children,
-                                                          useStore = true // ✅ Default to true for backward compatibility
-                                                      }) => {
+export const FlowCanvas: React.FC<FlowCanvasProps> = ({ slice = 'travel', configOverrides = {}, children, useStore = true }) => {
     console.log(useStore);
     return useStore ? (
-        <FlowCanvasWithStore
-            slice={slice}
-            configOverrides={configOverrides}
-        >
+        <FlowCanvasWithStore slice={slice} configOverrides={configOverrides}>
             {children}
         </FlowCanvasWithStore>
     ) : (
-        <FlowCanvasWithoutStore
-            slice={slice}
-            configOverrides={configOverrides}
-        >
+        <FlowCanvasWithoutStore slice={slice} configOverrides={configOverrides}>
             {children}
         </FlowCanvasWithoutStore>
     );

@@ -21,9 +21,9 @@ export const useFlowCanvas = ({
                                   reactFlowWrapper
                               }: UseFlowCanvasProps) => {
     // Initialize persistence
-    // useFlowPersistence({
-    //     onDataExpired: () => console.log('Flow diagram data has expired and been cleared'),
-    // });
+    useFlowPersistence({
+        onDataExpired: () => console.log('Flow diagram data has expired and been cleared'),
+    });
 
     const config = useFlowConfig(slice, isAuthorized, configOverrides);
     const { nodes, edges, actions } = useFlowState();
