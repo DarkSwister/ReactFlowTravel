@@ -19,6 +19,7 @@ export interface FlowConfig {
         icon: string;
         defaultData?: any;
     }>;
+    onSave?: (flowData: { nodes: any[]; edges: any[]; viewport: any }) => Promise<void>;
     className?: string;
     height?: string;
     onNodeClick?: (nodeId: string, nodeType: string) => void;

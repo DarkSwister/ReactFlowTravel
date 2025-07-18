@@ -75,7 +75,7 @@ class PlannerController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(): \Inertia\Response
     {
         return Inertia::render('Planners/Create', [
             'types' => [
@@ -87,7 +87,7 @@ class PlannerController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): \Illuminate\Http\RedirectResponse
     {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -113,9 +113,10 @@ class PlannerController extends Controller
             ->with('success', 'Planner created successfully!');
     }
 
-    public function show(Planner $planner)
+    public function show(Request $request, Planner $planner): \Inertia\Response
     {
-        $user = Auth::user();
+        $user = $request->user();
+
 
         if (!$planner->canView($user)) {
             abort(403, 'You do not have permission to view this planner.');
@@ -206,6 +207,7 @@ class PlannerController extends Controller
             'edges' => 'array',
             'viewport' => 'array',
         ]);
+
 
         // Update viewport if provided
         if (isset($validated['viewport'])) {

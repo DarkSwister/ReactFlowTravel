@@ -11,6 +11,10 @@ interface FlowProps {
     configOverrides?: Partial<FlowConfig>;
     children?: React.ReactNode;
     useStore?: boolean;
+    // New props for planner integration
+    initialNodes?: any[];
+    initialEdges?: any[];
+    plannerId?: number;
 }
 
 // ✅ Even cleaner: spread all props

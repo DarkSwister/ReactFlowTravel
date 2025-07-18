@@ -1,10 +1,9 @@
 import { usePage } from '@inertiajs/react';
 import { addEdge, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 
 import { getSliceConfig } from '@/shared/config/sliceConfigs';
-import { useFlowCanvas } from '@/shared/hooks/flow/useFlowCanvas';
-import { STABLE_NODE_TYPES } from '@/shared/lib/react-flow/nodeTypes'; // Import stable nodeTypes
+import { STABLE_NODE_TYPES } from '@/shared/lib/react-flow/nodeTypes';
 import { FlowConfig } from '@/shared/types/flowConfig';
 import { UniversalModal } from '@/shared/ui/UniversalModal';
 import { type SharedData } from '@/types';
@@ -18,67 +17,25 @@ interface FlowCanvasProps {
     slice?: string;
     configOverrides?: Partial<FlowConfig>;
     children?: React.ReactNode;
-    useStore?: boolean;
+    initialNodes?: any[];
+    initialEdges?: any[];
+    plannerId?: number;
 }
 
-// ✅ Store-based implementation
-const FlowCanvasWithStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slice = 'travel', configOverrides = {}, children }) => {
+export const FlowCanvas: React.FC<FlowCanvasProps> = ({
+                                                          slice = 'travel',
+                                                          configOverrides = {},
+                                                          children,
+                                                          initialNodes = [],
+                                                          initialEdges = [],
+                                                          plannerId
+                                                      }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
-    const isAuthorized = useMemo(() => !!auth.user, [auth.user]);
-
-    const { config, nodes, edges, handlers, modal, isEmpty } = useFlowCanvas({
-        slice,
-        configOverrides,
-        isAuthorized,
-        reactFlowWrapper,
-    });
-
-    return (
-        <div className={`relative ${config.className || ''}`} style={{ height: config.height || '100%' }} ref={reactFlowWrapper}>
-            <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={STABLE_NODE_TYPES} // ✅ Use completely stable nodeTypes
-                onNodesChange={handlers.onNodesChange}
-                onEdgesChange={handlers.onEdgesChange}
-                onConnect={handlers.onConnect}
-                onNodeClick={handlers.onNodeClick}
-                onPaneClick={config.onCanvasClick}
-                onDrop={handlers.onDrop}
-                onDragOver={handlers.onDragOver}
-                fitView={config.fitView}
-                defaultViewport={config.defaultViewport}
-                minZoom={config.minZoom}
-                maxZoom={config.maxZoom}
-                nodesDraggable={config.allowNodeEditing}
-                nodesConnectable={config.allowNodeEditing}
-                elementsSelectable={config.allowNodeEditing}
-                snapToGrid={true}
-                snapGrid={[25, 25]}
-            >
-                <FlowBackground show={config.showBackground} />
-                <FlowControls show={config.showControls} />
-                <FlowMiniMap show={config.showMiniMap} />
-                <FlowToolbar config={config} handlers={handlers} />
-                {children}
-            </ReactFlow>
-
-            <FlowEmptyState show={isEmpty} config={config} />
-            <UniversalModal {...modal} />
-        </div>
-    );
-};
-
-// ✅ Store-free implementation
-const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ slice = 'travel', configOverrides = {}, children }) => {
-    const { auth } = usePage<SharedData>().props;
-    const reactFlowWrapper = useRef<HTMLDivElement>(null);
-
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-
+    // ✅ Simple local state - no store complexity
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalNodeId, setModalNodeId] = useState<string | null>(null);
     const [modalNodeType, setModalNodeType] = useState<string | null>(null);
@@ -92,46 +49,55 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
 
     const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
-    const handleAddNode = useCallback(
-        (
-            nodeType: string,
-            defaultData: any = {},
-            position?: { x: number; y: number },
-        ) => {
-            if (!config.allowNodeCreation) return;
+    // ✅ Simple save function - direct to backend
+    const saveFlow = useCallback(async () => {
+        if (!plannerId || !config.onSave) {
+            console.log('No plannerId or onSave function available');
+            return;
+        }
 
-            const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            const newNode = {
-                id,
-                type: nodeType,
-                position: position || {
-                    x: Math.random() * 400 + 100,
-                    y: Math.random() * 300 + 100,
-                },
-                data: {
-                    label: `New ${nodeType.split(':')[1] || 'Node'}`,
-                    timestamp: new Date().toLocaleString(),
-                    ...defaultData,
-                },
-            };
+        try {
+            await config.onSave({
+                nodes,
+                edges,
+                viewport: { x: 0, y: 0, zoom: 1 }
+            });
+            console.log('✅ Flow saved successfully');
+        } catch (error) {
+            console.error('❌ Failed to save flow:', error);
+        }
+    }, [nodes, edges, plannerId, config.onSave]);
 
-            setNodes((nds) => [...nds, newNode]);
-        },
-        [config.allowNodeCreation, setNodes],
-    );
+    const handleAddNode = useCallback((nodeType: string, defaultData: any = {}, position?: { x: number; y: number }) => {
+        if (!config.allowNodeCreation) return;
 
-    const handleNodeClick = useCallback(
-        (event: React.MouseEvent, node: any) => {
-            if (config?.onNodeClick) {
-                config.onNodeClick(node.id, node.type);
-            } else if (config?.allowNodeEditing) {
-                setModalNodeId(node.id);
-                setModalNodeType(node.type);
-                setIsModalOpen(true);
-            }
-        },
-        [config],
-    );
+        const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newNode = {
+            id,
+            type: nodeType,
+            position: position || {
+                x: Math.random() * 400 + 100,
+                y: Math.random() * 300 + 100,
+            },
+            data: {
+                label: `New ${nodeType.split(':')[1] || 'Node'}`,
+                timestamp: new Date().toLocaleString(),
+                ...defaultData,
+            },
+        };
+
+        setNodes((nds) => [...nds, newNode]);
+    }, [config.allowNodeCreation, setNodes]);
+
+    const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
+        if (config?.onNodeClick) {
+            config.onNodeClick(node.id, node.type);
+        } else if (config?.allowNodeEditing) {
+            setModalNodeId(node.id);
+            setModalNodeType(node.type);
+            setIsModalOpen(true);
+        }
+    }, [config]);
 
     const closeModal = useCallback(() => {
         setIsModalOpen(false);
@@ -144,67 +110,75 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
         setEdges([]);
     }, [setNodes, setEdges]);
 
-    const onDragOver = useCallback(
-        (event: React.DragEvent) => {
-            if (!config?.enableDragAndDrop) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-        },
-        [config?.enableDragAndDrop],
-    );
+    const onDragOver = useCallback((event: React.DragEvent) => {
+        if (!config?.enableDragAndDrop) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+    }, [config?.enableDragAndDrop]);
 
-    const onDrop = useCallback(
-        (event: React.DragEvent) => {
-            if (!config?.enableDragAndDrop) return;
-            event.preventDefault();
+    const onDrop = useCallback((event: React.DragEvent) => {
+        if (!config?.enableDragAndDrop) return;
+        event.preventDefault();
 
-            const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
-            if (reactFlowBounds) {
-                const position = {
-                    x: event.clientX - reactFlowBounds.left,
-                    y: event.clientY - reactFlowBounds.top,
-                };
+        const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
+        if (reactFlowBounds) {
+            const position = {
+                x: event.clientX - reactFlowBounds.left,
+                y: event.clientY - reactFlowBounds.top,
+            };
 
-                const nodeType = event.dataTransfer.getData('application/reactflow');
-                if (nodeType) {
-                    const nodeConfig = config.availableNodes?.find((node) => node.type === nodeType);
-                    handleAddNode(nodeType, nodeConfig?.defaultData || {}, position);
-                }
+            const nodeType = event.dataTransfer.getData('application/reactflow');
+            if (nodeType) {
+                const nodeConfig = config.availableNodes?.find((node) => node.type === nodeType);
+                handleAddNode(nodeType, nodeConfig?.defaultData || {}, position);
             }
-        },
-        [config?.enableDragAndDrop, config?.availableNodes, handleAddNode],
-    );
+        }
+    }, [config?.enableDragAndDrop, config?.availableNodes, handleAddNode]);
 
-    const handlers = useMemo(
-        () => ({
-            onNodesChange,
-            onEdgesChange,
-            onConnect,
-            onDrop,
-            onDragOver,
-            onNodeClick: handleNodeClick,
-            addNode: handleAddNode,
-            resetFlow,
-        }),
-        [onNodesChange, onEdgesChange, onConnect, onDrop, onDragOver, handleNodeClick, handleAddNode, resetFlow],
-    );
+    const onDragStart = useCallback((event: React.DragEvent, nodeType: string) => {
+        event.dataTransfer.setData('application/reactflow', nodeType);
+        event.dataTransfer.effectAllowed = 'move';
+    }, []);
 
-    const modal = useMemo(
-        () => ({
-            isOpen: isModalOpen,
-            nodeId: modalNodeId,
-            nodeType: modalNodeType,
-            onClose: closeModal,
-        }),
-        [isModalOpen, modalNodeId, modalNodeType, closeModal],
-    );
+    // ✅ Simple handlers object
+    const handlers = useMemo(() => ({
+        onNodesChange,
+        onEdgesChange,
+        onConnect,
+        onDrop,
+        onDragOver,
+        onDragStart,
+        onNodeClick: handleNodeClick,
+        addNode: handleAddNode,
+        resetFlow,
+        save: saveFlow,
+        nodes,
+        edges,
+        // TODO: Add undo/redo from store later
+        actions: {
+            undo: () => console.log('Undo not implemented yet'),
+            redo: () => console.log('Redo not implemented yet'),
+            canUndo: false,
+            canRedo: false,
+        }
+    }), [
+        onNodesChange, onEdgesChange, onConnect, onDrop, onDragOver, onDragStart,
+        handleNodeClick, handleAddNode, resetFlow, saveFlow, nodes, edges
+    ]);
+
+    const modal = useMemo(() => ({
+        isOpen: isModalOpen,
+        nodeId: modalNodeId,
+        nodeType: modalNodeType,
+        onClose: closeModal,
+    }), [isModalOpen, modalNodeId, modalNodeType, closeModal]);
 
     return (
         <div className={`relative ${config.className || ''}`} style={{ height: config.height || '100%' }} ref={reactFlowWrapper}>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
-                nodeTypes={STABLE_NODE_TYPES} // ✅ Use completely stable nodeTypes
+                nodeTypes={STABLE_NODE_TYPES}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -232,17 +206,5 @@ const FlowCanvasWithoutStore: React.FC<Omit<FlowCanvasProps, 'useStore'>> = ({ s
             {nodes.length === 0 && <FlowEmptyState show={true} config={config} />}
             <UniversalModal {...modal} />
         </div>
-    );
-};
-
-export const FlowCanvas: React.FC<FlowCanvasProps> = ({ slice = 'travel', configOverrides = {}, children, useStore = true }) => {
-    return useStore ? (
-        <FlowCanvasWithStore slice={slice} configOverrides={configOverrides}>
-            {children}
-        </FlowCanvasWithStore>
-    ) : (
-        <FlowCanvasWithoutStore slice={slice} configOverrides={configOverrides}>
-            {children}
-        </FlowCanvasWithoutStore>
     );
 };

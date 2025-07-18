@@ -1,29 +1,20 @@
-import {
-    useNodes,
-    useEdges,
-    useFlowStore,
-    useCanUndo,
-    useCanRedo,
-    useUndo,
-    useRedo,
-} from '@/app/store/flowStore';
-
-export const useFlowState = () => {
-    const nodes = useNodes();
-    const edges = useEdges();
-
-    const actions = {
-        onNodesChange: useFlowStore((state) => state.onNodesChange),
-        onEdgesChange: useFlowStore((state) => state.onEdgesChange),
-        onConnect: useFlowStore((state) => state.onConnect),
-        addNode: useFlowStore((state) => state.addNode),
-        resetFlow: useFlowStore((state) => state.resetFlow),
-        openNodeModal: useFlowStore((state) => state.openNodeModal),
-        canUndo: useCanUndo(),
-        canRedo: useCanRedo(),
-        undo: useUndo(),
-        redo: useRedo(),
+// Remove all store imports and simplify:
+export const useFlowState = (initialNodes?: any[], initialEdges?: any[]) => {
+    // For now, just return empty state - we're using local state in FlowCanvas
+    return {
+        nodes: initialNodes || [],
+        edges: initialEdges || [],
+        actions: {
+            onNodesChange: () => {},
+            onEdgesChange: () => {},
+            onConnect: () => {},
+            addNode: () => {},
+            resetFlow: () => {},
+            openNodeModal: () => {},
+            canUndo: false,
+            canRedo: false,
+            undo: () => {},
+            redo: () => {},
+        }
     };
-
-    return { nodes, edges, actions };
 };

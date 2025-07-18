@@ -3,6 +3,7 @@
 
 namespace App\Models;
 
+use App\Models\Users\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,6 +17,7 @@ class Planner extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
+    protected $with = ['nodes','edges'];
     protected $fillable = [
         'user_id', 'title', 'description', 'type', 'config',
         'viewport', 'status', 'is_public', 'starts_at', 'ends_at', 'metadata'

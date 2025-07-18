@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFlowPersistence } from './useFlowPersistence';
 import { useFlowConfig } from './useFlowConfig';
 import { useFlowState } from './useFlowState';
@@ -12,13 +12,20 @@ interface UseFlowCanvasProps {
     configOverrides: Partial<FlowConfig>;
     isAuthorized: boolean;
     reactFlowWrapper: React.RefObject<HTMLDivElement>;
+    // Add new props for planner integration
+    initialNodes?: any[];
+    initialEdges?: any[];
+    plannerId?: number;
 }
 
 export const useFlowCanvas = ({
                                   slice,
                                   configOverrides,
                                   isAuthorized,
-                                  reactFlowWrapper
+                                  reactFlowWrapper,
+                                  initialNodes,
+                                  initialEdges,
+                                  plannerId
                               }: UseFlowCanvasProps) => {
     // Initialize persistence
     useFlowPersistence({
@@ -30,14 +37,22 @@ export const useFlowCanvas = ({
     const handlers = useFlowHandlers(config, actions, reactFlowWrapper);
     const modal = useFlowModal();
 
+    // For now, let's just log the initial data and handle it in the component
+    // You can implement proper store methods later
+    useEffect(() => {
+        if (initialNodes || initialEdges) {
+            console.log('Initial data received:', { initialNodes, initialEdges });
+        }
+    }, [initialNodes, initialEdges]);
+
     // getNodeTypes() is cached internally, so we can call it directly
     const nodeTypes = getNodeTypes();
     const isEmpty = nodes.length === 0;
 
     return {
         config,
-        nodes,
-        edges,
+        nodes: initialNodes && initialNodes.length > 0 ? initialNodes : nodes,
+        edges: initialEdges && initialEdges.length > 0 ? initialEdges : edges,
         nodeTypes,
         handlers,
         modal,

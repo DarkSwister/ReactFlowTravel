@@ -1,5 +1,5 @@
 import { type SharedData } from '@/types';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Flow } from '@/shared/ui/flow/Flow.tsx';
 import { useMemo } from 'react';
 
@@ -19,7 +19,6 @@ export default function Welcome() {
             </Head>
             <div
                 className="flex min-h-screen flex-col items-center bg-[#FDFDFC] p-2 text-[#1b1b18] lg:justify-center  dark:bg-[#0a0a0a]">
-
                 <div className="w-full max-w-7xl bg-white dark:bg-gray-900 rounded-lg shadow-sm border overflow-hidden">
                     <Flow
                         slice="travel"
