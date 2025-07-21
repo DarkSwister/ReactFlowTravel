@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('label');
             $table->decimal('position_x', 10, 2);
             $table->decimal('position_y', 10, 2);
+            $table->decimal('width', 8, 2)->nullable()->after('position_y')->comment('Width for resizable nodes (groups)');
+            $table->decimal('height', 8, 2)->nullable()->after('width')->comment('Height for resizable nodes (groups)');
             $table->json('data'); // all node-specific data (flexible)
             $table->json('style')->nullable(); // node styling
             $table->integer('z_index')->default(0);

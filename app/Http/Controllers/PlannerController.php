@@ -203,10 +203,26 @@ class PlannerController extends Controller
         }
 
         $validated = $request->validate([
-            'nodes' => 'array',
-            'edges' => 'array',
-            'viewport' => 'array',
+            'nodes' => 'sometimes|array',
+            'nodes.*.id' => 'required|string',
+            'nodes.*.type' => 'string',
+            'nodes.*.position' => 'required|array',
+            'nodes.*.position.x' => 'required|numeric',
+            'nodes.*.position.y' => 'required|numeric',
+            // Only validate dimensions for group nodes
+            'nodes.*.width' => 'nullable|numeric|required_if:nodes.*.type,group,groupNode',
+            'nodes.*.height' => 'nullable|numeric|required_if:nodes.*.type,group,groupNode',
+            'nodes.*.data' => 'array',
+            'edges' => 'sometimes|array',
+            'edges.*.id' => 'required|string',
+            'edges.*.source' => 'required|string',
+            'edges.*.target' => 'required|string',
+            'viewport' => 'nullable|array',
+            'viewport.x' => 'nullable|numeric',
+            'viewport.y' => 'nullable|numeric',
+            'viewport.zoom' => 'nullable|numeric',
         ]);
+
 
 
         // Update viewport if provided

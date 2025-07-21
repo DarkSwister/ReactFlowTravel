@@ -1,10 +1,9 @@
 import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge, type EdgeChange, type Node, type NodeChange } from '@xyflow/react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { shallow } from 'zustand/shallow';
 
 // Built-in save function - same logic for all pages
-const saveFlowToBackend = async (plannerId: number, nodes: Node[], edges: Edge[]) => {
+const saveFlowToBackend = async (plannerId: number, nodes: Node[], edges: Edge[], viewport: { x: number; y: number; zoom: number }) => {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     if (!csrfToken) {
@@ -23,7 +22,7 @@ const saveFlowToBackend = async (plannerId: number, nodes: Node[], edges: Edge[]
         body: JSON.stringify({
             nodes,
             edges,
-            viewport: { x: 0, y: 0, zoom: 1 }, // You might want to track actual viewport
+            viewport,
         }),
     });
 
@@ -37,7 +36,6 @@ const saveFlowToBackend = async (plannerId: number, nodes: Node[], edges: Edge[]
 
 export interface NodeData {
     label: string;
-
     [key: string]: any;
 }
 
@@ -51,6 +49,7 @@ export interface FlowState {
     // Core state
     nodes: Node[];
     edges: Edge[];
+    viewport: { x: number; y: number; zoom: number };
     plannerId: number | null;
 
     // History for undo/redo
@@ -106,7 +105,7 @@ export interface FlowState {
 
     // Backend sync
     syncToBackend: () => Promise<void>;
-    setPlannerId: (id: number) => void;
+    setPlannerId: (id: number | null) => void;
 
     // Modal management
     openNodeModal: (nodeId: string, nodeType: string) => void;
@@ -120,8 +119,8 @@ export interface FlowState {
     resetFlow: () => void;
     setNodes: (nodes: Node[]) => void;
     setEdges: (edges: Edge[]) => void;
-    initializeFlow: (nodes: Node[], edges: Edge[]) => void;
-    cleanup: () => void;
+    initializeFlow: (nodes: Node[], edges: Edge[], viewport?: { x: number; y: number; zoom: number }) => void;
+    setViewport: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 export const useFlowStore = create<FlowState>()(
@@ -130,12 +129,13 @@ export const useFlowStore = create<FlowState>()(
             // Initial state
             nodes: [],
             edges: [],
+            viewport: { x: 0, y: 0, zoom: 1 },
             plannerId: null,
             history: [],
             historyIndex: -1,
-            maxHistorySize: 50,
-            autoSaveEnabled: true,
-            autoSaveDelay: 3000, // 3 seconds
+            maxHistorySize: 10,
+            autoSaveEnabled: false,
+            autoSaveDelay: 5000,
             saveTimeoutId: null,
             isSyncing: false,
             lastSyncedAt: null,
@@ -147,6 +147,120 @@ export const useFlowStore = create<FlowState>()(
                 nodeData: null,
             },
             selectedNodeId: null,
+
+            setPlannerId: (id: number | null) => {
+                const state = get();
+
+                const isActuallySwitching = state.plannerId !== id && !(state.plannerId === null && id === null);
+                // If switching to a different planner, clear the flow
+                if (isActuallySwitching) {
+                    console.log('🔄 Switching planner context, clearing flow');
+                    set({
+                        plannerId: id,
+                        nodes: [],
+                        edges: [],
+                        viewport: { x: 0, y: 0, zoom: 1 },
+                        history: [],
+                        historyIndex: -1,
+                        pendingChanges: false,
+                    });
+                } else {
+                    console.log('✅ Same planner context, keeping data');
+                    set({ plannerId: id });
+                }
+
+                // Enable auto-save only for authenticated users with planner ID
+                state.enableAutoSave(!!id);
+            },
+
+            setViewport: (viewport: { x: number; y: number; zoom: number }) => {
+                set({ viewport });
+            },
+
+            // Auto-save management
+            enableAutoSave: (enabled: boolean, delay?: number) => {
+                const state = get();
+
+                if (!enabled && state.saveTimeoutId) {
+                    clearTimeout(state.saveTimeoutId);
+                }
+
+                set({
+                    autoSaveEnabled: enabled,
+                    autoSaveDelay: delay || state.autoSaveDelay,
+                    saveTimeoutId: enabled ? state.saveTimeoutId : null,
+                });
+
+                console.log(`🔄 Auto-save ${enabled ? 'enabled' : 'disabled'}`);
+            },
+
+            triggerAutoSave: () => {
+                const state = get();
+
+                if (!state.autoSaveEnabled || !state.plannerId || !state.pendingChanges || state.isSyncing) {
+                    return;
+                }
+
+                // Cancel existing timeout
+                if (state.saveTimeoutId) {
+                    clearTimeout(state.saveTimeoutId);
+                }
+
+                // Set new debounced timeout
+                const timeoutId = setTimeout(() => {
+                    const currentState = get();
+                    if (currentState.pendingChanges && !currentState.isSyncing && currentState.plannerId) {
+                        console.log('⏰ Auto-save triggered');
+                        currentState.syncToBackend().catch(console.error);
+                    }
+                }, state.autoSaveDelay);
+
+                set({ saveTimeoutId: timeoutId });
+            },
+
+            cancelAutoSave: () => {
+                const state = get();
+                if (state.saveTimeoutId) {
+                    clearTimeout(state.saveTimeoutId);
+                    set({ saveTimeoutId: null });
+                }
+            },
+
+            forceSave: async () => {
+                const state = get();
+                state.cancelAutoSave();
+
+                if (state.pendingChanges && state.plannerId) {
+                    await state.syncToBackend();
+                }
+            },
+
+            syncToBackend: async () => {
+                const state = get();
+
+                if (!state.plannerId || state.isSyncing || !state.pendingChanges) {
+                    return;
+                }
+
+                try {
+                    set({ isSyncing: true });
+
+                    await saveFlowToBackend(state.plannerId, state.nodes, state.edges, state.viewport);
+
+                    set({
+                        isSyncing: false,
+                        lastSyncedAt: Date.now(),
+                        pendingChanges: false,
+                        saveTimeoutId: null,
+                    });
+
+                    console.log('✅ Flow synced successfully');
+                } catch (error) {
+                    console.error('❌ Failed to sync flow:', error);
+                    set({ isSyncing: false });
+                    throw error;
+                }
+            },
 
             // History management
             saveToHistory: (markAsPending: boolean = true) => {
@@ -168,140 +282,25 @@ export const useFlowStore = create<FlowState>()(
 
                 set({
                     history: newHistory,
-                    pendingChanges: markAsPending, // ✅ Only mark as pending if requested
+                    pendingChanges: markAsPending,
                 });
-
-                if (markAsPending) {
-                    console.log('📝 Saved to history with pending changes');
-                } else {
-                    console.log('📝 Saved to history without pending changes');
-                }
-            },
-
-            // Auto-save management
-            enableAutoSave: (enabled: boolean, delay?: number) => {
-                const state = get();
-
-                if (!enabled && state.saveTimeoutId) {
-                    clearTimeout(state.saveTimeoutId);
-                }
-
-                set({
-                    autoSaveEnabled: enabled,
-                    autoSaveDelay: delay || state.autoSaveDelay,
-                    saveTimeoutId: enabled ? state.saveTimeoutId : null,
-                });
-
-                console.log(`🔄 Auto-save ${enabled ? 'enabled' : 'disabled'}${delay ? ` with ${delay}ms delay` : ''}`);
-            },
-
-            triggerAutoSave: () => {
-                const state = get();
-
-                // ✅ More strict conditions
-                if (
-                    !state.autoSaveEnabled ||
-                    !state.plannerId ||
-                    !state.pendingChanges || // Don't save if no changes
-                    state.isSyncing
-                ) {
-                    // Don't save if already syncing
-                    return;
-                }
-
-                // Cancel existing timeout
-                if (state.saveTimeoutId) {
-                    clearTimeout(state.saveTimeoutId);
-                }
-
-                // Set new debounced timeout
-                const timeoutId = setTimeout(() => {
-                    const currentState = get();
-                    if (currentState.pendingChanges && !currentState.isSyncing && currentState.plannerId) {
-                        console.log('⏰ Auto-save triggered after inactivity');
-                        currentState.syncToBackend().catch((error) => {
-                            console.error('❌ Auto-save failed:', error);
-                        });
-                    }
-                }, state.autoSaveDelay);
-
-                set({ saveTimeoutId: timeoutId });
-                console.log(`⏱️ Auto-save scheduled in ${state.autoSaveDelay}ms`);
-            },
-
-            cancelAutoSave: () => {
-                const state = get();
-                if (state.saveTimeoutId) {
-                    clearTimeout(state.saveTimeoutId);
-                    set({ saveTimeoutId: null });
-                    console.log('❌ Auto-save cancelled');
-                }
-            },
-
-            forceSave: async () => {
-                const state = get();
-                console.log('💾 Force save triggered');
-
-                state.cancelAutoSave();
-
-                if (state.pendingChanges && state.plannerId) {
-                    await state.syncToBackend();
-                } else {
-                    console.log('ℹ️ No changes to save');
-                }
-            },
-
-            // Backend sync
-            syncToBackend: async () => {
-                const state = get();
-                if (!state.plannerId || state.isSyncing || !state.pendingChanges) {
-                    console.log('Sync skipped:', {
-                        plannerId: !!state.plannerId,
-                        isSyncing: state.isSyncing,
-                        pendingChanges: state.pendingChanges,
-                    });
-                    return;
-                }
-
-                try {
-                    set({ isSyncing: true });
-
-                    await saveFlowToBackend(state.plannerId, state.nodes, state.edges);
-
-                    set({
-                        isSyncing: false,
-                        lastSyncedAt: Date.now(),
-                        pendingChanges: false,
-                        saveTimeoutId: null,
-                    });
-
-                    console.log('✅ Flow synced successfully');
-                } catch (error) {
-                    console.error('❌ Failed to sync flow:', error);
-                    set({ isSyncing: false });
-                    throw error;
-                }
-            },
-
-            setPlannerId: (id: number) => {
-                set({ plannerId: id });
-                console.log('🆔 Planner ID set to:', id);
             },
 
             // ReactFlow operations
             onNodesChange: (changes: NodeChange[]) => {
                 const state = get();
 
-                // Only save to history for significant changes
-                const significantChanges = changes.some((change) => change.type === 'remove' || change.type === 'add');
+                const significantChanges = changes.some(change =>
+                    change.type === 'remove' ||
+                    change.type === 'add' ||
+                    (change.type === 'position' && change.dragging === false)
+                );
 
                 if (significantChanges) {
-                    state.saveToHistory(true); // Mark as pending
+                    state.saveToHistory(true);
                 }
 
                 const newNodes = applyNodeChanges(changes, state.nodes);
-
-                // Only mark as pending if nodes actually changed
                 const hasChanges = JSON.stringify(newNodes) !== JSON.stringify(state.nodes);
 
                 set({
@@ -309,18 +308,15 @@ export const useFlowStore = create<FlowState>()(
                     pendingChanges: hasChanges || state.pendingChanges,
                 });
 
-                if (hasChanges) {
-                    console.log('🔄 Nodes changed, triggering auto-save');
+                if (hasChanges && significantChanges) {
                     state.triggerAutoSave();
-                } else {
-                    console.log('ℹ️ Node changes applied but no actual changes detected');
                 }
             },
 
             onEdgesChange: (changes: EdgeChange[]) => {
                 const state = get();
 
-                const significantChanges = changes.some((change) => change.type === 'remove' || change.type === 'add');
+                const significantChanges = changes.some(change => change.type === 'remove' || change.type === 'add');
 
                 if (significantChanges) {
                     state.saveToHistory(true);
@@ -335,16 +331,13 @@ export const useFlowStore = create<FlowState>()(
                 });
 
                 if (hasChanges) {
-                    console.log('🔄 Edges changed, triggering auto-save');
                     state.triggerAutoSave();
                 }
             },
 
             onConnect: (connection: Connection) => {
                 const state = get();
-                console.log('🔗 New connection created');
-
-                state.saveToHistory(true); // This is a significant change
+                state.saveToHistory(true);
 
                 set({
                     edges: addEdge(connection, state.edges),
@@ -357,11 +350,9 @@ export const useFlowStore = create<FlowState>()(
             // Node management
             addNode: (node: Node) => {
                 const state = get();
-                console.log('➕ Adding new node:', node.id);
-
                 state.saveToHistory(true);
 
-                set((state) => ({
+                set(state => ({
                     nodes: [...state.nodes, node],
                     pendingChanges: true,
                 }));
@@ -370,44 +361,32 @@ export const useFlowStore = create<FlowState>()(
             },
 
             updateNode: (nodeId: string, updates: Partial<Node>) => {
-                const state = get();
-
-                set((state) => ({
-                    nodes: state.nodes.map((node) => (node.id === nodeId ? { ...node, ...updates } : node)),
+                set(state => ({
+                    nodes: state.nodes.map(node => node.id === nodeId ? { ...node, ...updates } : node),
                     pendingChanges: true,
                 }));
 
-                state.triggerAutoSave();
+                get().triggerAutoSave();
             },
 
             updateNodeData: (nodeId: string, data: Partial<NodeData>, saveStrategy: 'auto' | 'immediate' | 'none' = 'auto') => {
                 const state = get();
-                const existingNode = state.nodes.find((n) => n.id === nodeId);
+                const existingNode = state.nodes.find(n => n.id === nodeId);
 
-                if (!existingNode) {
-                    console.warn('⚠️ Attempted to update non-existent node:', nodeId);
-                    return;
-                }
+                if (!existingNode) return;
 
-                // Check if data actually changed
                 const hasChanges = JSON.stringify({ ...existingNode.data, ...data }) !== JSON.stringify(existingNode.data);
+                if (!hasChanges) return;
 
-                if (!hasChanges) {
-                    console.log('ℹ️ Node data update skipped - no changes detected');
-                    return;
-                }
-
-                console.log('📝 Updating node data:', nodeId, saveStrategy);
-
-                // Update node data locally
-                set((state) => ({
-                    nodes: state.nodes.map((node) => (node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node)),
+                set(state => ({
+                    nodes: state.nodes.map(node =>
+                        node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node
+                    ),
                     pendingChanges: true,
                 }));
 
-                // Update modal data if this node is currently open
                 if (state.modalState.nodeId === nodeId) {
-                    set((state) => ({
+                    set(state => ({
                         modalState: {
                             ...state.modalState,
                             nodeData: { ...state.modalState.nodeData, ...data },
@@ -415,20 +394,12 @@ export const useFlowStore = create<FlowState>()(
                     }));
                 }
 
-                // Handle save strategy
                 switch (saveStrategy) {
                     case 'immediate':
-                        console.log('💾 Immediate save for node:', nodeId);
                         state.forceSave().catch(console.error);
                         break;
-
                     case 'auto':
-                        console.log('⏰ Auto-save triggered for node:', nodeId);
                         state.triggerAutoSave();
-                        break;
-
-                    case 'none':
-                        console.log('📝 Local-only update for node:', nodeId);
                         break;
                 }
             },
@@ -443,14 +414,15 @@ export const useFlowStore = create<FlowState>()(
 
             deleteNode: (nodeId: string) => {
                 const state = get();
-                state.saveToHistory();
+                state.saveToHistory(true);
 
-                set((state) => ({
-                    nodes: state.nodes.filter((node) => node.id !== nodeId),
-                    edges: state.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+                set(state => ({
+                    nodes: state.nodes.filter(node => node.id !== nodeId),
+                    edges: state.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId),
                     selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
-                    modalState:
-                        state.modalState.nodeId === nodeId ? { isOpen: false, nodeId: null, nodeType: null, nodeData: null } : state.modalState,
+                    modalState: state.modalState.nodeId === nodeId
+                        ? { isOpen: false, nodeId: null, nodeType: null, nodeData: null }
+                        : state.modalState,
                     pendingChanges: true,
                 }));
 
@@ -458,8 +430,7 @@ export const useFlowStore = create<FlowState>()(
             },
 
             getNode: (nodeId: string) => {
-                const state = get();
-                return state.nodes.find((node) => node.id === nodeId);
+                return get().nodes.find(node => node.id === nodeId);
             },
 
             undo: () => {
@@ -474,8 +445,6 @@ export const useFlowStore = create<FlowState>()(
                         historyIndex: state.historyIndex - 1,
                         pendingChanges: true,
                     });
-
-                    console.log('↶ Undo performed');
                     state.triggerAutoSave();
                 }
             },
@@ -492,8 +461,6 @@ export const useFlowStore = create<FlowState>()(
                         historyIndex: state.historyIndex + 1,
                         pendingChanges: true,
                     });
-
-                    console.log('↷ Redo performed');
                     state.triggerAutoSave();
                 }
             },
@@ -511,7 +478,7 @@ export const useFlowStore = create<FlowState>()(
             // Modal management
             openNodeModal: (nodeId: string, nodeType: string) => {
                 const state = get();
-                const node = state.nodes.find((n) => n.id === nodeId);
+                const node = state.nodes.find(n => n.id === nodeId);
 
                 if (!node) {
                     console.warn(`Attempted to open modal for non-existent node: ${nodeId}`);
@@ -526,19 +493,13 @@ export const useFlowStore = create<FlowState>()(
                         nodeData: node.data,
                     },
                 });
-
-                console.log('🔧 Modal opened for node:', nodeId);
             },
 
             closeModal: () => {
                 const state = get();
 
-                // If there are unsaved changes in modal, save them immediately
                 if (state.modalState.nodeId && state.pendingChanges) {
-                    console.log('💾 Saving modal changes before closing');
-                    state.forceSave().catch((error) => {
-                        console.error('Failed to save modal changes:', error);
-                    });
+                    state.forceSave().catch(console.error);
                 }
 
                 set({
@@ -549,19 +510,15 @@ export const useFlowStore = create<FlowState>()(
                         nodeData: null,
                     },
                 });
-
-                console.log('❌ Modal closed');
             },
 
             updateModalNodeData: (data: any) => {
                 const state = get();
                 if (state.modalState.nodeId) {
-                    console.log('🔄 Updating modal node data with immediate save');
                     state.updateNodeDataImmediate(state.modalState.nodeId, data);
                 }
             },
 
-            // Selection
             setSelectedNodeId: (id: string | null) => {
                 set({ selectedNodeId: id });
             },
@@ -569,7 +526,7 @@ export const useFlowStore = create<FlowState>()(
             // Utility operations
             resetFlow: () => {
                 const state = get();
-                state.saveToHistory();
+                state.saveToHistory(false);
 
                 set({
                     nodes: [],
@@ -585,7 +542,6 @@ export const useFlowStore = create<FlowState>()(
                 });
 
                 state.triggerAutoSave();
-                console.log('🗑️ Flow reset');
             },
 
             setNodes: (nodes: Node[]) => {
@@ -598,24 +554,26 @@ export const useFlowStore = create<FlowState>()(
                 get().triggerAutoSave();
             },
 
-            initializeFlow: (nodes: Node[], edges: Edge[]) => {
+            initializeFlow: (nodes: Node[], edges: Edge[], viewport?: { x: number; y: number; zoom: number }) => {
                 console.log('🚀 Initializing flow with', nodes.length, 'nodes and', edges.length, 'edges');
 
                 const currentState = get();
                 if (currentState.saveTimeoutId) {
                     clearTimeout(currentState.saveTimeoutId);
                 }
+
                 set({
                     nodes,
                     edges,
+                    viewport: viewport || { x: 0, y: 0, zoom: 1 },
                     history: [],
                     historyIndex: -1,
-                    pendingChanges: false, // ✅ Important: No pending changes on init
-                    lastSyncedAt: Date.now(), // ✅ Mark as synced since this is server data
+                    pendingChanges: false,
+                    lastSyncedAt: Date.now(),
                     isSyncing: false,
                 });
 
-                // Save initial state to history WITHOUT marking as pending
+                // Save initial state to history
                 const snapshot: FlowSnapshot = {
                     nodes: [...nodes],
                     edges: [...edges],
@@ -625,63 +583,41 @@ export const useFlowStore = create<FlowState>()(
                 set({
                     history: [snapshot],
                     historyIndex: 0,
-                    // Still no pending changes
                 });
 
-                console.log('✅ Flow initialized without triggering save');
-            },
-
-            cleanup: () => {
-                const state = get();
-
-                // Cancel any pending auto-save
-                state.cancelAutoSave();
-
-                // Clear state
-                set({
-                    plannerId: null,
-                    pendingChanges: false,
-                    isSyncing: false,
-                    modalState: {
-                        isOpen: false,
-                        nodeId: null,
-                        nodeType: null,
-                        nodeData: null,
-                    },
-                    selectedNodeId: null,
-                });
-
-                console.log('🧹 Store cleaned up');
+                console.log('✅ Flow initialized');
             },
         }),
         {
-            name: 'flow-storage',
+            name: 'reactflow-travel-store',
             partialize: (state) => ({
                 nodes: state.nodes,
                 edges: state.edges,
+                viewport: state.viewport,
                 plannerId: state.plannerId,
                 autoSaveEnabled: state.autoSaveEnabled,
                 autoSaveDelay: state.autoSaveDelay,
-                // Don't persist history, modal state, or sync state
             }),
         },
     ),
 );
 
+
 // Selector hooks for better performance
-export const useNodes = () => useFlowStore((state) => state.nodes, shallow);
-export const useEdges = () => useFlowStore((state) => state.edges, shallow);
-export const useCanUndo = () => useFlowStore((state) => state.canUndo());
-export const useCanRedo = () => useFlowStore((state) => state.canRedo());
-export const useUndo = () => useFlowStore((state) => state.undo);
-export const useRedo = () => useFlowStore((state) => state.redo);
-export const useIsSyncing = () => useFlowStore((state) => state.isSyncing);
-export const usePendingChanges = () => useFlowStore((state) => state.pendingChanges);
-export const useModalState = () => useFlowStore((state) => state.modalState, shallow);
-export const useSelectedNodeId = () => useFlowStore((state) => state.selectedNodeId);
+export const useNodes = () => useFlowStore(state => state.nodes);
+export const useEdges = () => useFlowStore(state => state.edges);
+export const useCanUndo = () => useFlowStore(state => state.canUndo());
+export const useCanRedo = () => useFlowStore(state => state.canRedo());
+export const useUndo = () => useFlowStore(state => state.undo);
+export const useRedo = () => useFlowStore(state => state.redo);
+export const useIsSyncing = () => useFlowStore(state => state.isSyncing);
+export const usePendingChanges = () => useFlowStore(state => state.pendingChanges);
+export const useModalState = () => useFlowStore(state => state.modalState);
+export const useSelectedNodeId = () => useFlowStore(state => state.selectedNodeId);
+
 // Operation hooks for cleaner component code
 export const useFlowOperations = () =>
-    useFlowStore((state) => ({
+    useFlowStore(state => ({
         onNodesChange: state.onNodesChange,
         onEdgesChange: state.onEdgesChange,
         onConnect: state.onConnect,
@@ -693,14 +629,14 @@ export const useFlowOperations = () =>
     }));
 
 export const useModalOperations = () =>
-    useFlowStore((state) => ({
+    useFlowStore(state => ({
         openNodeModal: state.openNodeModal,
         closeModal: state.closeModal,
         updateModalNodeData: state.updateModalNodeData,
     }));
 
 export const useAutoSaveOperations = () =>
-    useFlowStore((state) => ({
+    useFlowStore(state => ({
         enableAutoSave: state.enableAutoSave,
         triggerAutoSave: state.triggerAutoSave,
         cancelAutoSave: state.cancelAutoSave,
@@ -708,7 +644,7 @@ export const useAutoSaveOperations = () =>
     }));
 
 export const useNodeOperations = () =>
-    useFlowStore((state) => ({
+    useFlowStore(state => ({
         updateNodeData: state.updateNodeData,
         updateNodeDataImmediate: state.updateNodeDataImmediate,
         updateNodeDataCanvas: state.updateNodeDataCanvas,

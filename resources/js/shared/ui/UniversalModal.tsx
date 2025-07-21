@@ -9,10 +9,12 @@ import {
 import { useFlowStore } from '@/app/store/flowStore';
 import { getRegisteredModal, nodeHasModal } from '@/shared/lib/react-flow/nodeRegistry';
 
+// Update interface to match the modalState structure from the store
 interface UniversalModalProps {
     isOpen: boolean;
     nodeId: string | null;
     nodeType: string | null;
+    nodeData: any;
     onClose: () => void;
 }
 
@@ -20,6 +22,7 @@ export const UniversalModal: React.FC<UniversalModalProps> = ({
                                                                   isOpen,
                                                                   nodeId,
                                                                   nodeType,
+                                                                  nodeData,
                                                                   onClose,
                                                               }) => {
     const nodes = useFlowStore((state) => state.nodes);
@@ -28,17 +31,28 @@ export const UniversalModal: React.FC<UniversalModalProps> = ({
         return null;
     }
 
+    // Try to get fresh node data from store, fallback to prop data
+    let node = nodes.find(n => n.id === nodeId);
 
-    const node = nodes.find(n => n.id === nodeId);
+    if (!node && nodeData) {
+        // Create temporary node object if not found in store
+        node = {
+            id: nodeId,
+            type: nodeType,
+            data: nodeData,
+            position: { x: 0, y: 0 },
+        };
+    }
+
     if (!node) {
+        console.warn(`Node ${nodeId} not found`);
         return null;
     }
 
-    // Get the registered modal component for this node type
     const ModalComponent = getRegisteredModal(nodeType);
 
     if (!ModalComponent) {
-        console.warn(`Node type ${nodeType} is marked as having a modal but no modal component is registered`);
+        console.warn(`No modal component registered for node type: ${nodeType}`);
         return null;
     }
 
@@ -76,7 +90,6 @@ export const UniversalModal: React.FC<UniversalModalProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                {/* Render the registered modal component */}
                 <ModalComponent node={node} onClose={onClose} />
             </DialogContent>
         </Dialog>

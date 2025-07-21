@@ -11,8 +11,8 @@ class PlannerNode extends Model
 {
     protected $fillable = [
         'planner_id', 'node_id', 'type', 'label',
-        'position_x', 'position_y', 'data', 'style',
-        'z_index', 'draggable', 'selectable', 'parent_id'
+        'position_x', 'position_y', 'width', 'height',
+        'data', 'style', 'z_index', 'draggable', 'selectable', 'parent_id'
     ];
 
     protected $casts = [
@@ -20,6 +20,8 @@ class PlannerNode extends Model
         'style' => 'array',
         'position_x' => 'decimal:2',
         'position_y' => 'decimal:2',
+        'width' => 'decimal:2',
+        'height' => 'decimal:2',
         'z_index' => 'integer',
         'draggable' => 'boolean',
         'selectable' => 'boolean',
@@ -30,6 +32,12 @@ class PlannerNode extends Model
     public function planner(): BelongsTo
     {
         return $this->belongsTo(Planner::class);
+    }
+
+    // Check if this node type is resizable
+    public function isResizable(): bool
+    {
+        return in_array($this->type, ['group', 'groupNode']); // Add your group node types
     }
 
     // Virtual position attribute for React Flow compatibility
@@ -53,7 +61,7 @@ class PlannerNode extends Model
     // Convert to React Flow node format
     public function toFlowNode(): array
     {
-        return [
+        $node = [
             'id' => $this->node_id,
             'type' => $this->type,
             'position' => $this->position,
@@ -66,12 +74,20 @@ class PlannerNode extends Model
             'selectable' => $this->selectable,
             'parentNode' => $this->parent_id,
         ];
+
+        // Only add dimensions for resizable nodes (groups)
+        if ($this->isResizable() && $this->width !== null && $this->height !== null) {
+            $node['width'] = (float) $this->width;
+            $node['height'] = (float) $this->height;
+        }
+
+        return $node;
     }
 
     // Create from React Flow node
     public static function fromFlowNode(string $plannerId, array $node): self
     {
-        return new self([
+        $nodeData = [
             'planner_id' => $plannerId,
             'node_id' => $node['id'],
             'type' => $node['type'] ?? 'default',
@@ -84,13 +100,22 @@ class PlannerNode extends Model
             'draggable' => $node['draggable'] ?? true,
             'selectable' => $node['selectable'] ?? true,
             'parent_id' => $node['parentNode'] ?? null,
-        ]);
+        ];
+
+        // Only store dimensions for group nodes
+        $nodeType = $node['type'] ?? 'default';
+        if (in_array($nodeType, ['group', 'groupNode'])) {
+            $nodeData['width'] = $node['width'] ?? null;
+            $nodeData['height'] = $node['height'] ?? null;
+        }
+
+        return new self($nodeData);
     }
 
     // Update from React Flow node
     public function updateFromFlowNode(array $node): self
     {
-        $this->update([
+        $updateData = [
             'type' => $node['type'] ?? $this->type,
             'label' => $node['data']['label'] ?? $this->label,
             'position_x' => $node['position']['x'] ?? $this->position_x,
@@ -101,18 +126,31 @@ class PlannerNode extends Model
             'draggable' => $node['draggable'] ?? $this->draggable,
             'selectable' => $node['selectable'] ?? $this->selectable,
             'parent_id' => $node['parentNode'] ?? $this->parent_id,
-        ]);
+        ];
+
+        // Only update dimensions for resizable nodes
+        if ($this->isResizable()) {
+            $updateData['width'] = $node['width'] ?? $this->width;
+            $updateData['height'] = $node['height'] ?? $this->height;
+        }
+
+        $this->update($updateData);
 
         return $this;
     }
 
-    // Scope for specific node types
+    // Scope for resizable nodes only
+    public function scopeResizable($query)
+    {
+        return $query->whereIn('type', ['group', 'groupNode']);
+    }
+
+    // Rest of your existing methods...
     public function scopeOfType($query, string $type)
     {
         return $query->where('type', $type);
     }
 
-    // Scope for nodes within a specific area
     public function scopeInArea($query, float $minX, float $minY, float $maxX, float $maxY)
     {
         return $query->where('position_x', '>=', $minX)
@@ -121,14 +159,12 @@ class PlannerNode extends Model
             ->where('position_y', '<=', $maxY);
     }
 
-    // Get child nodes (if this is a parent/group node)
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id', 'node_id')
             ->where('planner_id', $this->planner_id);
     }
 
-    // Get parent node
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id', 'node_id')
