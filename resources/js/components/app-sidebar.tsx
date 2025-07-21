@@ -14,8 +14,8 @@ const mainNavItems: NavItem[] = [
         icon: Home,
     },
     {
-        title: 'My Trips',
-        href: '/trips',
+        title: 'My Plans',
+        href: '/planners',
         icon: MapIcon,
     },
     {
