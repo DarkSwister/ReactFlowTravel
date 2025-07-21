@@ -1,17 +1,19 @@
-import { usePage } from '@inertiajs/react';
-import { addEdge, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react';
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { ReactFlow } from '@xyflow/react';
+import { usePage } from '@inertiajs/react';
 
 import { getSliceConfig } from '@/shared/config/sliceConfigs';
 import { STABLE_NODE_TYPES } from '@/shared/lib/react-flow/nodeTypes';
 import { FlowConfig } from '@/shared/types/flowConfig';
 import { UniversalModal } from '@/shared/ui/UniversalModal';
 import { type SharedData } from '@/types';
+import { useFlowStore } from '@/app/store/flowStore';
 import { FlowBackground } from './FlowBackground';
 import { FlowControls } from './FlowControls';
 import { FlowEmptyState } from './FlowEmptyState';
 import { FlowMiniMap } from './FlowMiniMap';
 import { FlowToolbar } from './FlowToolbar';
+import { shallow } from 'zustand/vanilla/shallow';
 
 interface FlowCanvasProps {
     slice?: string;
@@ -32,13 +34,74 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                                                       }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
+    const [isInitialized, setIsInitialized] = useState(false);
 
-    // ✅ Simple local state - no store complexity
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalNodeId, setModalNodeId] = useState<string | null>(null);
-    const [modalNodeType, setModalNodeType] = useState<string | null>(null);
+    // Store selectors - use shallow comparison to prevent re-renders
+    const nodes = useFlowStore(state => state.nodes, shallow);
+    const edges = useFlowStore(state => state.edges, shallow);
+    const modalState = useFlowStore(state => state.modalState, shallow);
+    const canUndo = useFlowStore(state => state.canUndo());
+    const canRedo = useFlowStore(state => state.canRedo());
+
+    // Store operations - get them once and memoize
+    const flowOps = useMemo(() => ({
+        onNodesChange: useFlowStore.getState().onNodesChange,
+        onEdgesChange: useFlowStore.getState().onEdgesChange,
+        onConnect: useFlowStore.getState().onConnect,
+        addNode: useFlowStore.getState().addNode,
+        resetFlow: useFlowStore.getState().resetFlow,
+    }), []);
+
+    const modalOps = useMemo(() => ({
+        openNodeModal: useFlowStore.getState().openNodeModal,
+        closeModal: useFlowStore.getState().closeModal,
+    }), []);
+
+    const autoSaveOps = useMemo(() => ({
+        forceSave: useFlowStore.getState().forceSave,
+    }), []);
+
+    const undo = useMemo(() => useFlowStore.getState().undo, []);
+    const redo = useMemo(() => useFlowStore.getState().redo, []);
+
+    // Initialize store ONLY in effect, not during render
+    useEffect(() => {
+        if (plannerId && !isInitialized) {
+            console.log('🔧 Initializing FlowCanvas for planner:', plannerId);
+
+            // Get store state once
+            const store = useFlowStore.getState();
+
+            // Set planner ID
+            store.setPlannerId(plannerId);
+
+            // Initialize with data if available
+            if (initialNodes.length > 0 || initialEdges.length > 0) {
+                console.log('🔄 Initializing flow with server data (no save triggered)');
+                store.initializeFlow(initialNodes, initialEdges);
+            } else {
+                console.log('ℹ️ No initial data to load');
+            }
+
+            setIsInitialized(true);
+        }
+    }, [plannerId, initialNodes.length, initialEdges.length, isInitialized, initialNodes, initialEdges]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            console.log('🧹 FlowCanvas cleanup');
+            const store = useFlowStore.getState();
+
+            // Force save any pending changes
+            if (store.pendingChanges) {
+                console.log('💾 Force saving before unmount');
+                store.forceSave().catch(console.error);
+            }
+
+            store.cleanup();
+        };
+    }, []);
 
     const isAuthorized = useMemo(() => !!auth.user, [auth.user]);
 
@@ -47,27 +110,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         return { ...sliceConfig, ...configOverrides };
     }, [slice, isAuthorized, configOverrides]);
 
-    const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
-
-    // ✅ Simple save function - direct to backend
-    const saveFlow = useCallback(async () => {
-        if (!plannerId || !config.onSave) {
-            console.log('No plannerId or onSave function available');
-            return;
-        }
-
-        try {
-            await config.onSave({
-                nodes,
-                edges,
-                viewport: { x: 0, y: 0, zoom: 1 }
-            });
-            console.log('✅ Flow saved successfully');
-        } catch (error) {
-            console.error('❌ Failed to save flow:', error);
-        }
-    }, [nodes, edges, plannerId, config.onSave]);
-
+    // Memoize handlers to prevent re-creation
     const handleAddNode = useCallback((nodeType: string, defaultData: any = {}, position?: { x: number; y: number }) => {
         if (!config.allowNodeCreation) return;
 
@@ -86,29 +129,16 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             },
         };
 
-        setNodes((nds) => [...nds, newNode]);
-    }, [config.allowNodeCreation, setNodes]);
+        flowOps.addNode(newNode);
+    }, [config.allowNodeCreation, flowOps]);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
         if (config?.onNodeClick) {
             config.onNodeClick(node.id, node.type);
         } else if (config?.allowNodeEditing) {
-            setModalNodeId(node.id);
-            setModalNodeType(node.type);
-            setIsModalOpen(true);
+            modalOps.openNodeModal(node.id, node.type);
         }
-    }, [config]);
-
-    const closeModal = useCallback(() => {
-        setIsModalOpen(false);
-        setModalNodeId(null);
-        setModalNodeType(null);
-    }, []);
-
-    const resetFlow = useCallback(() => {
-        setNodes([]);
-        setEdges([]);
-    }, [setNodes, setEdges]);
+    }, [config, modalOps]);
 
     const onDragOver = useCallback((event: React.DragEvent) => {
         if (!config?.enableDragAndDrop) return;
@@ -140,38 +170,44 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         event.dataTransfer.effectAllowed = 'move';
     }, []);
 
-    // ✅ Simple handlers object
+    // Memoize handlers object
     const handlers = useMemo(() => ({
-        onNodesChange,
-        onEdgesChange,
-        onConnect,
+        onNodesChange: flowOps.onNodesChange,
+        onEdgesChange: flowOps.onEdgesChange,
+        onConnect: flowOps.onConnect,
         onDrop,
         onDragOver,
         onDragStart,
         onNodeClick: handleNodeClick,
         addNode: handleAddNode,
-        resetFlow,
-        save: saveFlow,
+        resetFlow: flowOps.resetFlow,
+        save: autoSaveOps.forceSave,
         nodes,
         edges,
-        // TODO: Add undo/redo from store later
         actions: {
-            undo: () => console.log('Undo not implemented yet'),
-            redo: () => console.log('Redo not implemented yet'),
-            canUndo: false,
-            canRedo: false,
+            undo,
+            redo,
+            canUndo,
+            canRedo,
         }
     }), [
-        onNodesChange, onEdgesChange, onConnect, onDrop, onDragOver, onDragStart,
-        handleNodeClick, handleAddNode, resetFlow, saveFlow, nodes, edges
+        flowOps, onDrop, onDragOver, onDragStart, handleNodeClick,
+        handleAddNode, autoSaveOps.forceSave, nodes, edges,
+        undo, redo, canUndo, canRedo
     ]);
 
-    const modal = useMemo(() => ({
-        isOpen: isModalOpen,
-        nodeId: modalNodeId,
-        nodeType: modalNodeType,
-        onClose: closeModal,
-    }), [isModalOpen, modalNodeId, modalNodeType, closeModal]);
+    // Don't render until initialized
+    if (!isInitialized) {
+        return (
+            <div className={`relative ${config.className || ''}`} style={{ height: config.height || '100%' }}>
+                <div className="flex items-center justify-center h-full">
+                    <div className="text-muted-foreground">Loading flow...</div>
+                </div>
+            </div>
+        );
+    }
+
+    console.log('🎯 FlowCanvas: Rendering with', nodes.length, 'nodes');
 
     return (
         <div className={`relative ${config.className || ''}`} style={{ height: config.height || '100%' }} ref={reactFlowWrapper}>
@@ -179,9 +215,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={STABLE_NODE_TYPES}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
+                onNodesChange={flowOps.onNodesChange}
+                onEdgesChange={flowOps.onEdgesChange}
+                onConnect={flowOps.onConnect}
                 onNodeClick={handleNodeClick}
                 onPaneClick={config.onCanvasClick}
                 onDrop={onDrop}
@@ -204,7 +240,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             </ReactFlow>
 
             {nodes.length === 0 && <FlowEmptyState show={true} config={config} />}
-            <UniversalModal {...modal} />
+            <UniversalModal {...modalState} onClose={modalOps.closeModal} />
         </div>
     );
 };

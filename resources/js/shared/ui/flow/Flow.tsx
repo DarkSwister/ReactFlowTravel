@@ -10,14 +10,12 @@ interface FlowProps {
     slice?: string;
     configOverrides?: Partial<FlowConfig>;
     children?: React.ReactNode;
-    useStore?: boolean;
-    // New props for planner integration
+    // Flow data props
     initialNodes?: any[];
     initialEdges?: any[];
     plannerId?: number;
 }
 
-// ✅ Even cleaner: spread all props
 const FlowWithProviders: React.FC<FlowProps> = (props) => (
     <DnDProvider>
         <FlowCanvas {...props} />
