@@ -229,7 +229,7 @@ export const useFlowStore = create<FlowState>()(
             forceSave: async () => {
                 const state = get();
                 state.cancelAutoSave();
-
+                console.log('🔄 Forcing save');
                 if (state.pendingChanges && state.plannerId) {
                     await state.syncToBackend();
                 }
@@ -614,6 +614,8 @@ export const useIsSyncing = () => useFlowStore(state => state.isSyncing);
 export const usePendingChanges = () => useFlowStore(state => state.pendingChanges);
 export const useModalState = () => useFlowStore(state => state.modalState);
 export const useSelectedNodeId = () => useFlowStore(state => state.selectedNodeId);
+
+export const useViewport = () => useFlowStore(state => state.viewport);
 
 // Operation hooks for cleaner component code
 export const useFlowOperations = () =>

@@ -20,6 +20,7 @@ interface FlowCanvasProps {
     children?: React.ReactNode;
     initialNodes?: any[];
     initialEdges?: any[];
+    initialViewport?: { x: number; y: number; zoom: number };
     plannerId?: number;
 }
 
@@ -29,6 +30,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     children,
     initialNodes = [],
     initialEdges = [],
+    initialViewport,
     plannerId
 }) => {
     const { auth } = usePage<SharedData>().props;
@@ -63,13 +65,24 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const undo = useMemo(() => useFlowStore.getState().undo, []);
     const redo = useMemo(() => useFlowStore.getState().redo, []);
 
+
+    const handleViewportChange = useCallback((newViewport: { x: number; y: number; zoom: number }) => {
+        const store = useFlowStore.getState();
+
+        // Use setTimeout to avoid blocking the UI during pan/zoom
+        setTimeout(() => {
+            store.setViewport(newViewport);
+
+        }, 0);
+    }, []);
     // Simple initialization
     useEffect(() => {
         if (!isInitialized) {
             console.log('🔧 Initializing FlowCanvas:', {
                 plannerId,
                 isGuest: !auth.user,
-                hasInitialData: initialNodes.length > 0 || initialEdges.length > 0
+                hasInitialData: initialNodes.length > 0 || initialEdges.length > 0,
+                hasInitialViewport: !!initialViewport
             });
 
             const store = useFlowStore.getState();
@@ -90,28 +103,26 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 hasServerData,
                 switchedPlanner,
                 previousPlannerId,
-                currentPlannerId: plannerId || null
+                currentPlannerId: plannerId || null,
+                initialViewport
             });
 
             if (switchedPlanner && hasServerData) {
                 console.log('🔄 Switched planner - initializing with server data');
-                store.initializeFlow(initialNodes, initialEdges);
-            } else if (!hasPersistedData && hasServerData) {
+                store.initializeFlow(initialNodes, initialEdges, initialViewport)            } else if (!hasPersistedData && hasServerData) {
                 console.log('🔄 No persisted data - initializing with server data');
-                store.initializeFlow(initialNodes, initialEdges);
+                store.initializeFlow(initialNodes, initialEdges, initialViewport);
             } else if (!hasPersistedData && !hasServerData) {
                 console.log('ℹ️ No data found - initializing empty flow');
-                store.initializeFlow([], []);
+                store.initializeFlow([], [], initialViewport);
             } else {
                 console.log('✅ Using existing persisted data');
-                // Don't call initializeFlow - keep the persisted data
             }
 
             setIsInitialized(true);
         }
-    }, [plannerId, initialNodes, initialEdges, isInitialized, auth.user]);
+    }, [plannerId, initialNodes, initialEdges, isInitialized, auth.user, initialViewport]);
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             const store = useFlowStore.getState();
@@ -237,6 +248,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 fitView={config.fitView}
+                onViewportChange={handleViewportChange}
                 defaultViewport={config.defaultViewport}
                 minZoom={config.minZoom}
                 maxZoom={config.maxZoom}

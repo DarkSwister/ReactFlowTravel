@@ -13,6 +13,7 @@ interface FlowProps {
     // Flow data props
     initialNodes?: any[];
     initialEdges?: any[];
+    initialViewport?: { x: number; y: number; zoom: number };
     plannerId?: number;
 }
 

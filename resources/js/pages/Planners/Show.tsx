@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
-import { Head, Link } from '@inertiajs/react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Share, Users, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
 import { Flow } from '@/shared/ui/flow/Flow';
+import { type BreadcrumbItem } from '@/types';
+import { Head, Link } from '@inertiajs/react';
+import { ArrowLeft, Settings, Share, Users } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface PlannerData {
     id: number;
@@ -78,20 +78,23 @@ export default function Show({ planner, collaborators }: Props) {
     ];
 
     // Flow configuration based on planner type and permissions
-    const flowConfig = useMemo(() => ({
-        showMiniMap: false,
-        showControls: true,
-        showBackground: true,
-        showToolbar: true,
-        height: 'calc(100vh - 200px)',
-        // Flow editing permissions - owner and edit permission can edit
-        allowNodeCreation: planner.permission === 'owner' || planner.permission === 'edit',
-        allowNodeEditing: planner.permission === 'owner' || planner.permission === 'edit',
-        allowUndo: planner.permission === 'owner' || planner.permission === 'edit',
-        enableDragAndDrop: true,
-        fitView: true,
-        defaultViewport: planner.viewport || { x: 0, y: 0, zoom: 1 },
-    }), [planner.permission, planner.viewport]);
+    const flowConfig = useMemo(
+        () => ({
+            showMiniMap: false,
+            showControls: true,
+            showBackground: true,
+            showToolbar: true,
+            height: 'calc(100vh - 200px)',
+            // Flow editing permissions - owner and edit permission can edit
+            allowNodeCreation: planner.permission === 'owner' || planner.permission === 'edit',
+            allowNodeEditing: planner.permission === 'owner' || planner.permission === 'edit',
+            allowUndo: planner.permission === 'owner' || planner.permission === 'edit',
+            enableDragAndDrop: true,
+            fitView: !planner.viewport || (planner.viewport.x === 0 && planner.viewport.y === 0 && planner.viewport.zoom === 1),
+            defaultViewport: planner.viewport || { x: 0, y: 0, zoom: 1 },
+        }),
+        [planner.permission, planner.viewport],
+    );
 
     // Permission checks
     const canEditFlow = planner.permission === 'owner' || planner.permission === 'edit';
@@ -102,9 +105,9 @@ export default function Show({ planner, collaborators }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={planner.title} />
 
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-hidden">
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden rounded-xl p-4">
                 {/* Header */}
-                <div className="flex items-center justify-between flex-shrink-0">
+                <div className="flex flex-shrink-0 items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Button variant="ghost" size="sm" asChild>
                             <Link href={route('planners.index')}>
@@ -112,25 +115,13 @@ export default function Show({ planner, collaborators }: Props) {
                             </Link>
                         </Button>
                         <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                                <h1 className="text-2xl font-bold tracking-tight truncate">
-                                    {planner.title}
-                                </h1>
-                                <Badge variant={statusColors[planner.status]}>
-                                    {planner.status}
-                                </Badge>
-                                {planner.is_public && (
-                                    <Badge variant="outline">Public</Badge>
-                                )}
-                                {planner.permission === 'owner' && (
-                                    <Badge variant="default">Owner</Badge>
-                                )}
+                            <div className="mb-1 flex items-center gap-2">
+                                <h1 className="truncate text-2xl font-bold tracking-tight">{planner.title}</h1>
+                                <Badge variant={statusColors[planner.status]}>{planner.status}</Badge>
+                                {planner.is_public && <Badge variant="outline">Public</Badge>}
+                                {planner.permission === 'owner' && <Badge variant="default">Owner</Badge>}
                             </div>
-                            {planner.description && (
-                                <p className="text-muted-foreground text-sm line-clamp-1">
-                                    {planner.description}
-                                </p>
-                            )}
+                            {planner.description && <p className="line-clamp-1 text-sm text-muted-foreground">{planner.description}</p>}
                             {planner.permission !== 'owner' && (
                                 <p className="text-xs text-muted-foreground">
                                     by {planner.owner.name} • {planner.permission} access
@@ -167,19 +158,21 @@ export default function Show({ planner, collaborators }: Props) {
                 </div>
 
                 {/* Flow Canvas */}
-                <div className="flex-1 min-h-0 bg-white dark:bg-gray-900 rounded-lg shadow-sm border overflow-hidden">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white shadow-sm dark:bg-gray-900">
                     <Flow
                         slice={planner.type}
                         configOverrides={flowConfig}
                         initialNodes={planner.nodes}
                         initialEdges={planner.edges}
                         plannerId={planner.id}
+                        initialViewport={planner.viewport}
+
                     />
                 </div>
 
                 {/* Permission notices */}
                 {!canEditFlow && (
-                    <div className="flex-shrink-0 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <div className="flex-shrink-0 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
                         <p className="text-sm text-blue-800 dark:text-blue-200">
                             You have {planner.permission} access to this planner.
                             {planner.permission === 'view' && ' Contact the owner for edit permissions.'}
