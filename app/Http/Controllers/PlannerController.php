@@ -240,11 +240,13 @@ class PlannerController extends Controller
             $this->syncEdges($planner, $validated['edges']);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Flow saved successfully',
-            'planner' => $planner->toFlowData($user),
-        ]);
+        return back()->with('success', 'Flow saved successfully');
+
+//        return response()->json([
+//            'success' => true,
+//            'message' => 'Flow saved successfully',
+//            'planner' => $planner->toFlowData($user),
+//        ]);
     }
 
     private function syncNodes(Planner $planner, array $nodes)

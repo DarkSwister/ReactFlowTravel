@@ -1,39 +1,36 @@
 import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge, type EdgeChange, type Node, type NodeChange } from '@xyflow/react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { router} from '@inertiajs/react';
 
-// Built-in save function - same logic for all pages
+
+// Built-in save function using Inertia router with manual CSRF handling
 const saveFlowToBackend = async (plannerId: number, nodes: Node[], edges: Edge[], viewport: { x: number; y: number; zoom: number }) => {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-    if (!csrfToken) {
-        throw new Error('CSRF token not found');
-    }
-
     console.log('💾 Saving flow to backend for planner:', plannerId);
 
-    const response = await fetch(route('planners.save-flow', plannerId), {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken,
-            Accept: 'application/json',
-        },
-        body: JSON.stringify({
-            nodes,
-            edges,
-            viewport,
-        }),
+    return new Promise((resolve, reject) => {
+        router.post(
+            route('planners.save-flow', plannerId),
+            {
+                nodes: nodes,
+                edges: edges,
+                viewport: viewport,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                only: [], // Don't reload any page data
+                onSuccess: (page) => {
+                    resolve(page.props);
+                },
+                onError: (errors) => {
+                    console.error('❌ Failed to save flow:', errors);
+                    reject(new Error(`Save failed: ${Object.values(errors).join(', ')}`));
+                },
+            },
+        );
     });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Save failed: ${response.status} ${response.statusText}. ${errorData.message || ''}`);
-    }
-
-    return response.json();
 };
-
 export interface NodeData {
     label: string;
     [key: string]: any;
