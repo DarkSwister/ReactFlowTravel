@@ -13,6 +13,7 @@ import { FlowControls } from './FlowControls';
 import { FlowEmptyState } from './FlowEmptyState';
 import { FlowMiniMap } from './FlowMiniMap';
 import { FlowToolbar } from './FlowToolbar';
+import { FlowAnalyticsSidebar } from './FlowAnalyticsSidebar';
 
 interface FlowCanvasProps {
     slice?: string;
@@ -36,6 +37,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [isInitialized, setIsInitialized] = useState(false);
+    const [showAnalytics, setShowAnalytics] = useState(false);
 
     // Store selectors
     const nodes = useNodes();
@@ -109,7 +111,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
             if (switchedPlanner && hasServerData) {
                 console.log('🔄 Switched planner - initializing with server data');
-                store.initializeFlow(initialNodes, initialEdges, initialViewport)            } else if (!hasPersistedData && hasServerData) {
+                store.initializeFlow(initialNodes, initialEdges, initialViewport);
+            } else if (!hasPersistedData && hasServerData) {
                 console.log('🔄 No persisted data - initializing with server data');
                 store.initializeFlow(initialNodes, initialEdges, initialViewport);
             } else if (!hasPersistedData && !hasServerData) {
@@ -140,11 +143,21 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     }, [slice, isAuthorized, configOverrides]);
 
     // Handlers
-    const handleAddNode = useCallback((nodeType: string, defaultData: any = {}, position?: { x: number; y: number }) => {
+    const handleAddNode = useCallback((nodeType: string, defaultData: any = {}, position?: { x: number; y: number }, parentId?: string) => {
         if (!config.allowNodeCreation) return;
 
+        // Get default data from node registration if available
+        const configNode = config.availableNodes?.find(node => node.type === nodeType);
+        const registeredDefaultData = configNode?.defaultData || {};
+        
+        console.log(`Creating node ${nodeType}:`, {
+            passedDefaultData: defaultData,
+            registeredDefaultData,
+            configAvailableNodes: config.availableNodes?.map(n => ({type: n.type, hasDefaultData: !!n.defaultData}))
+        });
+
         const id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newNode = {
+        const nodeConfig: any = {
             id,
             type: nodeType,
             position: position || {
@@ -154,11 +167,26 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             data: {
                 label: `New ${nodeType.split(':')[1] || 'Node'}`,
                 timestamp: new Date().toLocaleString(),
-                ...defaultData,
+                ...registeredDefaultData, // Apply registered default data first
+                ...defaultData, // Then apply any passed defaultData (overrides)
             },
         };
 
-        flowOps.addNode(newNode);
+        // Handle React Flow sub-flows for group nodes
+        if (nodeType === 'travel:group') {
+            // Keep the node type as travel:group, but add styling for React Flow groups
+            nodeConfig.style = {
+                width: 400,
+                height: 300,
+            };
+        } else if (parentId) {
+            // This node is being added to a group
+            nodeConfig.parentId = parentId;
+            nodeConfig.extent = 'parent';
+            nodeConfig.expandParent = true;
+        }
+
+        flowOps.addNode(nodeConfig);
     }, [config.allowNodeCreation, flowOps]);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
@@ -199,6 +227,65 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         event.dataTransfer.effectAllowed = 'move';
     }, []);
 
+    const onNodeDragStop = useCallback((event: any, node: any) => {
+        // Find if the node was dropped inside any group
+        const groupNodes = nodes.filter(n => n.type === 'travel:group');
+        
+        for (const groupNode of groupNodes) {
+            if (!groupNode.position || !groupNode.width || !groupNode.height) continue;
+            
+            const groupBounds = {
+                x: groupNode.position.x,
+                y: groupNode.position.y,
+                width: groupNode.width,
+                height: groupNode.height,
+            };
+            
+            const nodeCenterX = node.position.x + 100; // Assuming node width ~200, center is +100
+            const nodeCenterY = node.position.y + 75;  // Assuming node height ~150, center is +75
+            
+            // Check if node center is within group bounds
+            if (nodeCenterX >= groupBounds.x &&
+                nodeCenterX <= groupBounds.x + groupBounds.width &&
+                nodeCenterY >= groupBounds.y + 80 && // Account for header
+                nodeCenterY <= groupBounds.y + groupBounds.height) {
+                
+                // Node is inside this group - set parent relationship
+                console.log(`Auto-assigning node ${node.id} to group ${groupNode.id}`);
+                const store = useFlowStore.getState();
+                store.onNodesChange([{
+                    id: node.id,
+                    type: 'replace',
+                    item: {
+                        ...node,
+                        parentId: groupNode.id,
+                        extent: 'parent',
+                        expandParent: true,
+                        data: { ...node.data, groupId: groupNode.id }
+                    }
+                }]);
+                return; // Only assign to one group
+            }
+        }
+        
+        // If not in any group, remove parent relationship if it exists
+        if (node.parentId) {
+            console.log(`Removing node ${node.id} from group ${node.parentId}`);
+            const store = useFlowStore.getState();
+            const { parentId, extent, expandParent, ...nodeWithoutParent } = node;
+            const { groupId, ...dataWithoutGroupId } = node.data || {};
+            
+            store.onNodesChange([{
+                id: node.id,
+                type: 'replace',
+                item: {
+                    ...nodeWithoutParent,
+                    data: dataWithoutGroupId
+                }
+            }]);
+        }
+    }, [nodes]);
+
     const handlers = useMemo(() => ({
         onNodesChange: flowOps.onNodesChange,
         onEdgesChange: flowOps.onEdgesChange,
@@ -217,7 +304,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             redo,
             canUndo,
             canRedo,
-        }
+        },
+        showAnalytics: () => setShowAnalytics(true)
     }), [
         flowOps, onDrop, onDragOver, onDragStart, handleNodeClick,
         handleAddNode, autoSaveOps.forceSave, nodes, edges,
@@ -235,7 +323,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     }
 
     return (
-        <div className={`relative ${config.className || ''}`} style={{ height: config.height || '100%' }} ref={reactFlowWrapper}>
+        <div className={`relative ${config.className || ''} flow-canvas-container`} style={{ height: config.height || '100%' }} ref={reactFlowWrapper}>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -244,6 +332,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 onEdgesChange={flowOps.onEdgesChange}
                 onConnect={flowOps.onConnect}
                 onNodeClick={handleNodeClick}
+                onNodeDragStop={onNodeDragStop}
                 onPaneClick={config.onCanvasClick}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
@@ -255,6 +344,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 nodesDraggable={config.allowNodeEditing}
                 nodesConnectable={config.allowNodeEditing}
                 elementsSelectable={config.allowNodeEditing}
+                onlyRenderVisibleElements={false}
                 snapToGrid={true}
                 snapGrid={[25, 25]}
             >
@@ -272,6 +362,12 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 nodeType={modalState.nodeType}
                 nodeData={modalState.nodeData}
                 onClose={modalOps.closeModal}
+            />
+            {/* Analytics Sidebar */}
+            <FlowAnalyticsSidebar 
+                isOpen={showAnalytics}
+                onClose={() => setShowAnalytics(false)}
+                onSave={autoSaveOps.forceSave}
             />
         </div>
     );

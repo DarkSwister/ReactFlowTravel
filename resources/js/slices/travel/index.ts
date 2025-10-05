@@ -4,7 +4,7 @@ import BookingNode from '@/shared/nodes/BookingNode';
 import GroupNode from '@/shared/nodes/GroupNode';
 import { FlightModal } from './ui/FlightModal';
 import { BookingModal } from './ui/BookingModal';
-import { createBaseFlowConfig } from '@/shared/config/flowConfigs';
+// import { createBaseFlowConfig } from '@/shared/config/flowConfigs';
 
 // Self-register nodes with metadata
 registerNode('travel:flight', FlightNode, {

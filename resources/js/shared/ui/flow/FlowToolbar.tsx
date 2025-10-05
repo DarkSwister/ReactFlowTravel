@@ -1,7 +1,7 @@
 import React from 'react';
 import { Panel } from '@xyflow/react';
 import { Button } from '@/components/ui/button';
-import { Hotel, Plane, Redo, Trash2, Undo, Users, Save } from 'lucide-react';
+import { Hotel, Plane, Redo, Trash2, Undo, Users, Save, BarChart3 } from 'lucide-react';
 import { FlowConfig } from '@/shared/types/flowConfig';
 import { Link } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
@@ -101,6 +101,18 @@ export const FlowToolbar: React.FC<FlowToolbarProps> = ({ config, handlers }) =>
             {/* Right Toolbar */}
             <Panel position="top-right" className="m-2">
                 <div className="flex items-center gap-2 rounded-lg border bg-white p-2 shadow-sm dark:bg-gray-800">
+                    {/* Analytics Button */}
+                    <Button
+                        onClick={handlers.showAnalytics}
+                        size="sm"
+                        variant="outline"
+                        title="Show Analytics"
+                        className="text-blue-600 hover:bg-blue-50"
+                    >
+                        <BarChart3 className="h-4 w-4 mr-1" />
+                        Analytics
+                    </Button>
+                    
                     {/* Save Button */}
                     {auth.user && (config.allowNodeEditing || config.allowNodeCreation) && hasSave && (
                         <>

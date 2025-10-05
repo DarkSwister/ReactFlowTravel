@@ -2,6 +2,7 @@ import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { router} from '@inertiajs/react';
+import { addNodeToGroup as addNodeToGroupUtil, removeNodeFromGroup as removeNodeFromGroupUtil, arrangeNodesInGroup } from '@/utils/groupSubFlowUtils';
 
 
 // Built-in save function using Inertia router with manual CSRF handling
@@ -111,6 +112,11 @@ export interface FlowState {
 
     // Selection
     setSelectedNodeId: (id: string | null) => void;
+
+    // Group management
+    addNodeToGroup: (nodeId: string, groupId: string) => void;
+    removeNodeFromGroup: (nodeId: string) => void;
+    moveNodeBetweenGroups: (nodeId: string, newGroupId: string) => void;
 
     // Utility
     resetFlow: () => void;
@@ -520,6 +526,82 @@ export const useFlowStore = create<FlowState>()(
                 set({ selectedNodeId: id });
             },
 
+            // Group management operations
+            addNodeToGroup: (nodeId: string, groupId: string) => {
+                const state = get();
+                const targetNode = state.nodes.find(node => node.id === nodeId);
+                const groupNode = state.nodes.find(node => node.id === groupId);
+                
+                if (!targetNode || !groupNode || groupNode.type !== 'travel:group') {
+                    console.warn(`Cannot add node ${nodeId} to group ${groupId}`);
+                    return;
+                }
+
+                state.saveToHistory(true);
+                
+                const updatedNodes = addNodeToGroupUtil(nodeId, groupId, state.nodes);
+                const arrangedNodes = arrangeNodesInGroup(groupId, updatedNodes, groupNode.width, groupNode.height);
+                
+                set({ 
+                    nodes: arrangedNodes, 
+                    pendingChanges: true 
+                });
+                
+                state.triggerAutoSave();
+                console.log(`✅ Added node ${nodeId} to group ${groupId}`);
+            },
+
+            removeNodeFromGroup: (nodeId: string) => {
+                const state = get();
+                const targetNode = state.nodes.find(node => node.id === nodeId);
+                
+                if (!targetNode || !targetNode.parentId) {
+                    console.warn(`Cannot remove node ${nodeId} from group - not in a group`);
+                    return;
+                }
+
+                state.saveToHistory(true);
+                
+                const updatedNodes = removeNodeFromGroupUtil(nodeId, state.nodes);
+                
+                set({ 
+                    nodes: updatedNodes, 
+                    pendingChanges: true 
+                });
+                
+                state.triggerAutoSave();
+                console.log(`✅ Removed node ${nodeId} from group`);
+            },
+
+            moveNodeBetweenGroups: (nodeId: string, newGroupId: string) => {
+                const state = get();
+                const targetNode = state.nodes.find(node => node.id === nodeId);
+                const newGroupNode = state.nodes.find(node => node.id === newGroupId);
+                
+                if (!targetNode || !newGroupNode || newGroupNode.type !== 'travel:group') {
+                    console.warn(`Cannot move node ${nodeId} to group ${newGroupId}`);
+                    return;
+                }
+
+                state.saveToHistory(true);
+                
+                // First remove from current group, then add to new group
+                let updatedNodes = targetNode.parentId ? 
+                    removeNodeFromGroupUtil(nodeId, state.nodes) : 
+                    state.nodes;
+                    
+                updatedNodes = addNodeToGroupUtil(nodeId, newGroupId, updatedNodes);
+                const arrangedNodes = arrangeNodesInGroup(newGroupId, updatedNodes, newGroupNode.width, newGroupNode.height);
+                
+                set({ 
+                    nodes: arrangedNodes, 
+                    pendingChanges: true 
+                });
+                
+                state.triggerAutoSave();
+                console.log(`✅ Moved node ${nodeId} to group ${newGroupId}`);
+            },
+
             // Utility operations
             resetFlow: () => {
                 const state = get();
@@ -647,4 +729,11 @@ export const useNodeOperations = () =>
         updateNodeData: state.updateNodeData,
         updateNodeDataImmediate: state.updateNodeDataImmediate,
         updateNodeDataCanvas: state.updateNodeDataCanvas,
+    }));
+
+export const useGroupOperations = () =>
+    useFlowStore(state => ({
+        addNodeToGroup: state.addNodeToGroup,
+        removeNodeFromGroup: state.removeNodeFromGroup,
+        moveNodeBetweenGroups: state.moveNodeBetweenGroups,
     }));
