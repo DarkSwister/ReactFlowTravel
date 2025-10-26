@@ -33,7 +33,7 @@ export function removeNodeFromGroup(nodeId: string, nodes: Node[]): Node[] {
         if (node.id === nodeId && node.parentId) {
             const { parentId, extent, expandParent, ...restNode } = node;
             const { groupId, ...restData } = node.data || {};
-            
+
             return {
                 ...restNode,
                 data: restData
@@ -76,14 +76,14 @@ export function findGroupContainingPosition(
     position: { x: number; y: number },
     nodes: Node[]
 ): Node | null {
-    const groupNodes = nodes.filter(node => node.type === 'travel:group');
-    
+    const groupNodes = nodes.filter(node => node.type === 'group');
+
     for (const groupNode of groupNodes) {
         if (isPositionInsideGroup(position, groupNode)) {
             return groupNode;
         }
     }
-    
+
     return null;
 }
 
@@ -98,16 +98,16 @@ export function getGroupChildren(groupId: string, nodes: Node[]): Node[] {
  * Get all nodes that are not in any group
  */
 export function getUngroupedNodes(nodes: Node[]): Node[] {
-    return nodes.filter(node => !node.parentId && node.type !== 'travel:group');
+    return nodes.filter(node => !node.parentId && node.type !== 'group');
 }
 
 /**
  * Arrange nodes in a grid within a group
  */
 export function arrangeNodesInGroup(
-    groupId: string, 
-    nodes: Node[], 
-    groupWidth: number = 400, 
+    groupId: string,
+    nodes: Node[],
+    groupWidth: number = 400,
     groupHeight: number = 300
 ): Node[] {
     const groupChildren = getGroupChildren(groupId, nodes);

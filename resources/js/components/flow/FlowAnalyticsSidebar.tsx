@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { ScrollArea } from '@/components/ui/scroll-area.tsx';
+import { Separator } from '@/components/ui/separator.tsx';
 import {
     BarChart3,
     DollarSign,
@@ -15,8 +15,10 @@ import {
     Package,
     Save
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useFlowAnalytics, getCategoryIcon, getCategoryColor } from '@/shared/hooks/flow/useFlowAnalytics';
+import { cn } from '@/lib/utils.ts';
+import { useFlowAnalytics, getCategoryIcon, getCategoryColor } from '@/shared/hooks/flow/useFlowAnalytics.ts';
+import { usePage } from '@inertiajs/react';
+import type { SharedData } from '@/types';
 
 interface FlowAnalyticsSidebarProps {
     isOpen: boolean;
@@ -29,6 +31,7 @@ export const FlowAnalyticsSidebar: React.FC<FlowAnalyticsSidebarProps> = ({
     onClose,
     onSave
 }) => {
+    const { auth } = usePage<SharedData>().props;
     const [activeTab, setActiveTab] = useState('overview');
     const analytics = useFlowAnalytics();
 
@@ -251,11 +254,11 @@ export const FlowAnalyticsSidebar: React.FC<FlowAnalyticsSidebarProps> = ({
                     </TabsContent>
                 </div>
             </Tabs>
-            
+
             {/* Save Button */}
-            {onSave && (
+            {onSave && auth.user && (
                 <div className="p-4 border-t border-border">
-                    <Button 
+                    <Button
                         onClick={onSave}
                         className="w-full"
                         size="sm"

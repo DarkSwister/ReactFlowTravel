@@ -14,7 +14,6 @@ interface Planner {
     id: number;
     title: string;
     description?: string;
-    type: 'travel' | 'event' | 'project' | 'general';
     status: 'draft' | 'active' | 'completed' | 'archived';
     is_public: boolean;
     created_at: string;
@@ -67,16 +66,9 @@ const statusColors = {
     archived: 'destructive',
 } as const;
 
-const typeIcons = {
-    travel: MapPin,
-    event: Calendar,
-    project: Users,
-    general: MapPin,
-};
 
-export default function Index({ planners, filters, types, statuses }: Props) {
+export default function Index({ planners, filters, statuses }: Props) {
     const [search, setSearch] = useState(filters.search || '');
-    const [type, setType] = useState(filters.type || 'all');
     const [status, setStatus] = useState(filters.status || 'all');
     const [sortBy, setSortBy] = useState(filters.sort_by || 'updated_at');
     const [sortOrder, setSortOrder] = useState(filters.sort_order || 'desc');
@@ -84,7 +76,6 @@ export default function Index({ planners, filters, types, statuses }: Props) {
     const handleFilter = () => {
         router.get(route('planners.index'), {
             search: search || undefined,
-            type: type === 'all' ? undefined : type,
             status: status === 'all' ? undefined : status,
             sort_by: sortBy,
             sort_order: sortOrder,
@@ -131,20 +122,6 @@ export default function Index({ planners, filters, types, statuses }: Props) {
                         />
                     </div>
 
-                    <Select value={type} onValueChange={setType}>
-                        <SelectTrigger className="w-full sm:w-48">
-                            <SelectValue placeholder="All types" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All types</SelectItem>
-                            {types.map((t) => (
-                                <SelectItem key={t} value={t}>
-                                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
                     <Select value={status} onValueChange={setStatus}>
                         <SelectTrigger className="w-full sm:w-48">
                             <SelectValue placeholder="All statuses" />
@@ -184,17 +161,12 @@ export default function Index({ planners, filters, types, statuses }: Props) {
                 {planners.data.length > 0 ? (
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         {planners.data.map((planner) => {
-                            const TypeIcon = typeIcons[planner.type];
                             return (
                                 <Card key={planner.id} className="group hover:shadow-lg transition-shadow">
                                     <CardHeader className="pb-3">
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <TypeIcon className="h-4 w-4 text-muted-foreground" />
-                                                    <Badge variant="outline" className="text-xs">
-                                                        {planner.type}
-                                                    </Badge>
                                                     {planner.is_fork && (
                                                         <Badge variant="secondary" className="text-xs">
                                                             <GitFork className="h-3 w-3 mr-1" />
@@ -290,12 +262,12 @@ export default function Index({ planners, filters, types, statuses }: Props) {
                             No planners found
                         </h3>
                         <p className="mt-2 text-muted-foreground">
-                            {filters.search || (filters.status && filters.status !== 'all') || (filters.type && filters.type !== 'all')
+                            {filters.search || (filters.status && filters.status !== 'all')
                                 ? 'Try adjusting your filters or search terms.'
                                 : 'Get started by creating your first planner.'
                             }
                         </p>
-                        {!filters.search && (!filters.status || filters.status === 'all') && (!filters.type || filters.type === 'all') && (
+                        {!filters.search && (!filters.status || filters.status === 'all') && (
                             <Button asChild className="mt-4">
                                 <Link href={route('planners.create')}>
                                     <Plus className="mr-2 h-4 w-4" />

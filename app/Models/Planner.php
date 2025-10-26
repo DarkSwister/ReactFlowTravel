@@ -19,7 +19,7 @@ class Planner extends Model
 
     protected $with = ['nodes','edges'];
     protected $fillable = [
-        'user_id', 'title', 'description', 'type', 'config',
+        'user_id', 'title', 'description', 'config',
         'viewport', 'status', 'is_public', 'starts_at', 'ends_at', 'metadata'
     ];
 
@@ -76,11 +76,6 @@ class Planner extends Model
     public function forkSource(): HasMany
     {
         return $this->hasMany(PlannerFork::class, 'forked_planner_id');
-    }
-
-    public function getSliceAttribute(): string
-    {
-        return $this->type === 'travel' ? 'travel' : 'general';
     }
 
     public function getRouteKeyName()
@@ -155,8 +150,6 @@ class Planner extends Model
             'id' => $this->id,
             'title' => $this->title,
             'description' => $this->description,
-            'type' => $this->type,
-            'slice' => $this->slice,
             'config' => $this->config ?? [],
             'viewport' => $this->viewport,
             'status' => $this->status,

@@ -33,24 +33,24 @@ export const useFlowAnalytics = (): OverallAnalytics => {
     const nodes = useFlowStore(state => state.nodes);
 
     return useMemo(() => {
-        const groupNodes = nodes.filter(node => node.type === 'travel:group');
-        const nonGroupNodes = nodes.filter(node => node.type !== 'travel:group');
-        
+        const groupNodes = nodes.filter(node => node.type === 'group');
+        const nonGroupNodes = nodes.filter(node => node.type !== 'group');
+
         // Process groups and their contained nodes using both parent-child relationships and positional detection
         const groups: GroupAnalytics[] = groupNodes.map(groupNode => {
             // Find nodes using both methods:
             // 1. Parent-child relationships (React Flow sub-flows)
             const childNodes = nonGroupNodes.filter(node => node.parentId === groupNode.id);
-            
+
             // 2. Positional detection (legacy/fallback method)
             const positionalNodes = getNodesInside(groupNode, nonGroupNodes);
-            
+
             // Combine both approaches, removing duplicates
             const combinedNodeIds = new Set([
                 ...childNodes.map(n => n.id),
                 ...positionalNodes.map(n => n.id)
             ]);
-            
+
             const nodesInside = nonGroupNodes.filter(node => combinedNodeIds.has(node.id));
 
             const groupAnalytics: GroupAnalytics = {
@@ -67,7 +67,7 @@ export const useFlowAnalytics = (): OverallAnalytics => {
                 // Handle both price and estimatedPrice fields (booking nodes use estimatedPrice)
                 const price = (node.data?.price || node.data?.estimatedPrice || 0) as number;
                 const category = getNodeCategory(node.type);
-                
+
                 const nodeAnalytics: NodeAnalytics = {
                     id: node.id,
                     type: node.type,
@@ -95,7 +95,7 @@ export const useFlowAnalytics = (): OverallAnalytics => {
         const groupedNodeIds = new Set(
             groups.flatMap(group => group.nodes.map(node => node.id))
         );
-        
+
         const ungroupedNodes: NodeAnalytics[] = nonGroupNodes
             .filter(node => !groupedNodeIds.has(node.id))
             .map(node => ({
@@ -109,7 +109,7 @@ export const useFlowAnalytics = (): OverallAnalytics => {
         // Calculate overall statistics
         const allNodes = [...groups.flatMap(g => g.nodes), ...ungroupedNodes];
         const totalCost = allNodes.reduce((sum, node) => sum + node.price, 0);
-        
+
         // Calculate category totals across all nodes
         const categories: Record<string, { count: number; total: number }> = {};
         allNodes.forEach(node => {
@@ -134,13 +134,13 @@ export const useFlowAnalytics = (): OverallAnalytics => {
 // Helper function to categorize nodes by type
 function getNodeCategory(nodeType: string): string {
     switch (nodeType) {
-        case 'travel:flight':
+        case 'flight':
             return 'Flights';
-        case 'travel:booking':
+        case 'booking':
             return 'Accommodation';
-        case 'travel:activity':
+        case 'activity':
             return 'Activities';
-        case 'travel:transport':
+        case 'transport':
             return 'Transport';
         default:
             return 'Other';

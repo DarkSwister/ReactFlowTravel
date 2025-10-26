@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useDnD } from '@/shared/ui/DnDContext';
-import { FlowConfig } from '@/shared/types/flowConfig';
+import { FlowConfig } from '@/types/flowConfig.ts';
 
 export const useFlowHandlers = (
     config: FlowConfig,

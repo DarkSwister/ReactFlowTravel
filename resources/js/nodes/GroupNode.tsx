@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { NodeResizer } from '@xyflow/react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Edit2, DollarSign, Plane } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useFlowStore } from '@/app/store/flowStore';
+import { Card, CardContent, CardHeader } from '@/components/ui/card.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Edit2, Plane } from 'lucide-react';
+import { cn } from '@/lib/utils.ts';
+import { useFlowStore } from '@/app/store/flowStore.ts';
 import { getNodesInside } from '@/utils/groupUtils';
 
 interface GroupNodeProps {
@@ -44,7 +44,7 @@ const GroupNode: React.FC<GroupNodeProps> = ({ id, data, selected, width = 400, 
     const nodesInside = useMemo(() => {
         if (!currentGroupNode) return [];
 
-        const nonGroupNodes = nodes.filter(n => n.type !== 'travel:group');
+        const nonGroupNodes = nodes.filter(n => n.type !== 'group');
 
         // Find nodes using both methods:
         // 1. Parent-child relationships (React Flow sub-flows)
@@ -99,7 +99,7 @@ const GroupNode: React.FC<GroupNodeProps> = ({ id, data, selected, width = 400, 
                 priceField: node.data?.price,
                 estimatedPriceField: node.data?.estimatedPrice
             });
-            
+
             const price = (node.data?.price || node.data?.estimatedPrice || 0);
             console.log(`GroupNode ${id}: Node ${node.id} final - price=${node.data?.price}, estimatedPrice=${node.data?.estimatedPrice}, using=${price}`);
             return total + price;

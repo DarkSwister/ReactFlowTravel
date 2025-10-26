@@ -16,7 +16,6 @@ return new class extends Migration
             $table->foreignUuid('user_id')->constrained()->onDelete('cascade');
             $table->string('title');
             $table->text('description')->nullable();
-            $table->string('type')->default('general'); // travel, event, project, etc.
             $table->json('config')->nullable(); // stores slice config overrides
             $table->json('viewport')->nullable(); // stores canvas viewport state
             $table->enum('status', ['draft', 'active', 'completed', 'archived'])->default('draft');
@@ -27,7 +26,6 @@ return new class extends Migration
             $table->json('metadata')->nullable(); // flexible field for type-specific data
             $table->timestamps();
 
-            $table->index(['user_id', 'type']);
             $table->index(['user_id', 'status']);
             $table->index('share_token');
         });

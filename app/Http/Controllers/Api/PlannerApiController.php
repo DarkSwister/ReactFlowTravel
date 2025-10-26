@@ -31,8 +31,8 @@ class PlannerApiController extends Controller
 
     public function saveFlow(Request $request, Planner $planner): ?\Illuminate\Http\JsonResponse
     {
+        dd('a');
         $user = Auth::user();
-        dd($user);
         if (!$planner->canEdit($user)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
@@ -93,7 +93,6 @@ class PlannerApiController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-
             return response()->json([
                 'error' => 'Failed to save flow',
                 'message' => $e->getMessage(),
@@ -411,9 +410,9 @@ class PlannerApiController extends Controller
 
         // Delete nodes that are no longer present
         $planner->nodes()->whereNotIn('node_id', $nodeIds)->delete();
-
         // Update or create nodes
         foreach ($nodes as $nodeData) {
+            dd($nodeData);
             $planner->nodes()->updateOrCreate(
                 ['node_id' => $nodeData['id']],
                 [

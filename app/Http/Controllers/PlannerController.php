@@ -23,11 +23,6 @@ class PlannerController extends Controller
                     });
             });
 
-        // Apply filters
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -52,7 +47,6 @@ class PlannerController extends Controller
                 'id' => $planner->id,
                 'title' => $planner->title,
                 'description' => $planner->description,
-                'type' => $planner->type,
                 'status' => $planner->status,
                 'is_public' => $planner->is_public,
                 'created_at' => $planner->created_at,
@@ -69,8 +63,7 @@ class PlannerController extends Controller
 
         return Inertia::render('Planners/Index', [
             'planners' => $planners,
-            'filters' => $request->only(['type', 'status', 'search', 'sort_by', 'sort_order']),
-            'types' => ['travel', 'event', 'project', 'general'],
+            'filters' => $request->only(['status', 'search', 'sort_by', 'sort_order']),
             'statuses' => ['draft', 'active', 'completed', 'archived'],
         ]);
     }
@@ -78,12 +71,6 @@ class PlannerController extends Controller
     public function create(): \Inertia\Response
     {
         return Inertia::render('Planners/Create', [
-            'types' => [
-                'travel' => 'Travel Planning',
-                'event' => 'Event Planning',
-                'project' => 'Project Management',
-                'general' => 'General Planning',
-            ],
         ]);
     }
 
@@ -92,7 +79,6 @@ class PlannerController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
-            'type' => 'required|string|in:travel,event,project,general',
             'is_public' => 'boolean',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date|after:starts_at',
@@ -102,7 +88,6 @@ class PlannerController extends Controller
             'user_id' => Auth::id(),
             'title' => $validated['title'],
             'description' => $validated['description'],
-            'type' => $validated['type'],
             'is_public' => $validated['is_public'] ?? false,
             'starts_at' => $validated['starts_at'],
             'ends_at' => $validated['ends_at'],

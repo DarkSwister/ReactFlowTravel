@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useFlowStore } from '@/app/store/flowStore';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useFlowStore } from '@/app/store/flowStore.ts';
+import { Button } from '@/components/ui/button.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Label } from '@/components/ui/label.tsx';
 
 interface FlightModalProps {
     node: any;

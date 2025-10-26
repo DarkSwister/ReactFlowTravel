@@ -58,9 +58,9 @@ export const UniversalModal: React.FC<UniversalModalProps> = ({
 
     const getNodeTypeLabel = (type: string) => {
         switch (type) {
-            case 'travel:flight':
+            case 'flight':
                 return 'Flight';
-            case 'travel:booking':
+            case 'booking':
                 return 'Accommodation';
             default:
                 return 'Node';
@@ -69,9 +69,9 @@ export const UniversalModal: React.FC<UniversalModalProps> = ({
 
     const getNodeDescription = (type: string) => {
         switch (type) {
-            case 'travel:flight':
+            case 'flight':
                 return 'Configure flight details including departure, arrival, dates, and price range.';
-            case 'travel:booking':
+            case 'booking':
                 return 'Configure accommodation details including location, dates, and price range.';
             default:
                 return 'Configure node settings.';

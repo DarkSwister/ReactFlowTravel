@@ -2,37 +2,35 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import { ReactFlow } from '@xyflow/react';
 import { usePage } from '@inertiajs/react';
 
-import { getSliceConfig } from '@/shared/config/sliceConfigs';
-import { STABLE_NODE_TYPES } from '@/shared/lib/react-flow/nodeTypes';
-import { FlowConfig } from '@/shared/types/flowConfig';
-import { UniversalModal } from '@/shared/ui/UniversalModal';
+import { getDefaultFlowConfig } from '@/config/flowConfig';
+import { getNodeTypes, getAvailableNodesList } from '@/nodes';
+import { FlowConfig } from '@/types/flowConfig';
+import { UniversalModal } from '@/shared/ui/UniversalModal.tsx';
 import { type SharedData } from '@/types';
-import { useFlowStore, useNodes, useEdges, useModalState } from '@/app/store/flowStore';
-import { FlowBackground } from './FlowBackground';
-import { FlowControls } from './FlowControls';
-import { FlowEmptyState } from './FlowEmptyState';
-import { FlowMiniMap } from './FlowMiniMap';
-import { FlowToolbar } from './FlowToolbar';
-import { FlowAnalyticsSidebar } from './FlowAnalyticsSidebar';
+import { useFlowStore, useNodes, useEdges, useModalState } from '@/app/store/flowStore.ts';
+import { FlowBackground } from './FlowBackground.tsx';
+import { FlowControls } from './FlowControls.tsx';
+import { FlowEmptyState } from './FlowEmptyState.tsx';
+import { FlowMiniMap } from './FlowMiniMap.tsx';
+import { FlowToolbar } from './FlowToolbar.tsx';
+import { FlowAnalyticsSidebar } from './FlowAnalyticsSidebar.tsx';
 
 interface FlowCanvasProps {
-    slice?: string;
-    configOverrides?: Partial<FlowConfig>;
     children?: React.ReactNode;
     initialNodes?: any[];
     initialEdges?: any[];
     initialViewport?: { x: number; y: number; zoom: number };
     plannerId?: number;
+    configOverrides?: Partial<FlowConfig>;
 }
 
 export const FlowCanvas: React.FC<FlowCanvasProps> = ({
-    slice = 'travel',
-    configOverrides = {},
     children,
     initialNodes = [],
     initialEdges = [],
     initialViewport,
-    plannerId
+    plannerId,
+    configOverrides = {}
 }) => {
     const { auth } = usePage<SharedData>().props;
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -137,10 +135,20 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
     const isAuthorized = useMemo(() => !!auth.user, [auth.user]);
 
+    // Get node types for ReactFlow
+    const nodeTypes = useMemo(() => getNodeTypes(), []);
+
+    // Build config: defaults + overrides + available nodes
     const config = useMemo(() => {
-        const sliceConfig = getSliceConfig(slice, isAuthorized);
-        return { ...sliceConfig, ...configOverrides };
-    }, [slice, isAuthorized, configOverrides]);
+        const defaultConfig = getDefaultFlowConfig(isAuthorized);
+        const availableNodes = getAvailableNodesList();
+
+        return {
+            ...defaultConfig,
+            ...configOverrides,
+            availableNodes,
+        };
+    }, [isAuthorized, configOverrides]);
 
     // Handlers
     const handleAddNode = useCallback((nodeType: string, defaultData: any = {}, position?: { x: number; y: number }, parentId?: string) => {
@@ -149,7 +157,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         // Get default data from node registration if available
         const configNode = config.availableNodes?.find(node => node.type === nodeType);
         const registeredDefaultData = configNode?.defaultData || {};
-        
+
         console.log(`Creating node ${nodeType}:`, {
             passedDefaultData: defaultData,
             registeredDefaultData,
@@ -173,8 +181,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         };
 
         // Handle React Flow sub-flows for group nodes
-        if (nodeType === 'travel:group') {
-            // Keep the node type as travel:group, but add styling for React Flow groups
+        if (nodeType === 'group') {
             nodeConfig.style = {
                 width: 400,
                 height: 300,
@@ -187,7 +194,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         }
 
         flowOps.addNode(nodeConfig);
-    }, [config.allowNodeCreation, flowOps]);
+    }, [config.allowNodeCreation, config.availableNodes, flowOps]);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: any) => {
         if (config?.onNodeClick) {
@@ -229,27 +236,27 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
     const onNodeDragStop = useCallback((event: any, node: any) => {
         // Find if the node was dropped inside any group
-        const groupNodes = nodes.filter(n => n.type === 'travel:group');
-        
+        const groupNodes = nodes.filter(n => n.type === 'group');
+
         for (const groupNode of groupNodes) {
             if (!groupNode.position || !groupNode.width || !groupNode.height) continue;
-            
+
             const groupBounds = {
                 x: groupNode.position.x,
                 y: groupNode.position.y,
                 width: groupNode.width,
                 height: groupNode.height,
             };
-            
+
             const nodeCenterX = node.position.x + 100; // Assuming node width ~200, center is +100
             const nodeCenterY = node.position.y + 75;  // Assuming node height ~150, center is +75
-            
+
             // Check if node center is within group bounds
             if (nodeCenterX >= groupBounds.x &&
                 nodeCenterX <= groupBounds.x + groupBounds.width &&
                 nodeCenterY >= groupBounds.y + 80 && // Account for header
                 nodeCenterY <= groupBounds.y + groupBounds.height) {
-                
+
                 // Node is inside this group - set parent relationship
                 console.log(`Auto-assigning node ${node.id} to group ${groupNode.id}`);
                 const store = useFlowStore.getState();
@@ -267,14 +274,14 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 return; // Only assign to one group
             }
         }
-        
+
         // If not in any group, remove parent relationship if it exists
         if (node.parentId) {
             console.log(`Removing node ${node.id} from group ${node.parentId}`);
             const store = useFlowStore.getState();
             const { parentId, extent, expandParent, ...nodeWithoutParent } = node;
             const { groupId, ...dataWithoutGroupId } = node.data || {};
-            
+
             store.onNodesChange([{
                 id: node.id,
                 type: 'replace',
@@ -327,7 +334,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
-                nodeTypes={STABLE_NODE_TYPES}
+                nodeTypes={nodeTypes}
                 onNodesChange={flowOps.onNodesChange}
                 onEdgesChange={flowOps.onEdgesChange}
                 onConnect={flowOps.onConnect}
@@ -364,7 +371,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 onClose={modalOps.closeModal}
             />
             {/* Analytics Sidebar */}
-            <FlowAnalyticsSidebar 
+            <FlowAnalyticsSidebar
                 isOpen={showAnalytics}
                 onClose={() => setShowAnalytics(false)}
                 onSave={autoSaveOps.forceSave}

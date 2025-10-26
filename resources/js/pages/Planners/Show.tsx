@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
-import { Flow } from '@/shared/ui/flow/Flow';
+import { Flow } from '@/components/flow/Flow';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, Settings, Share, Users } from 'lucide-react';
@@ -11,7 +11,6 @@ interface PlannerData {
     id: number;
     title: string;
     description?: string;
-    type: 'travel' | 'event' | 'project' | 'general';
     status: 'draft' | 'active' | 'completed' | 'archived';
     is_public: boolean;
     starts_at?: string;
@@ -160,7 +159,6 @@ export default function Show({ planner, collaborators }: Props) {
                 {/* Flow Canvas */}
                 <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white shadow-sm dark:bg-gray-900">
                     <Flow
-                        slice={planner.type}
                         configOverrides={flowConfig}
                         initialNodes={planner.nodes}
                         initialEdges={planner.edges}

@@ -2,12 +2,11 @@ import React from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { DnDProvider } from '../DnDContext';
-import { FlowCanvas } from './FlowCanvas';
-import { FlowConfig } from '@/shared/types/flowConfig';
+import { DnDProvider } from '../../shared/ui/DnDContext.tsx';
+import { FlowCanvas } from './FlowCanvas.tsx';
+import { FlowConfig } from '@/types/flowConfig.ts';
 
 interface FlowProps {
-    slice?: string;
     configOverrides?: Partial<FlowConfig>;
     children?: React.ReactNode;
     // Flow data props

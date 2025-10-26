@@ -1,11 +1,8 @@
-import { type SharedData } from '@/types';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { Flow } from '@/shared/ui/flow/Flow.tsx';
+import { Head } from '@inertiajs/react';
+import { Flow } from '@/components/flow/Flow.tsx';
 import { useMemo } from 'react';
 
 export default function Welcome() {
-    const { auth } = usePage<SharedData>().props;
-
     const flowConfig = useMemo(() => ({
         showMiniMap: false,
         height: '700px',

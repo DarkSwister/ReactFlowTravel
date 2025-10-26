@@ -34,7 +34,6 @@ export default function Create({ types }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         title: '',
         description: '',
-        type: 'travel',
         is_public: false,
         starts_at: '',
         ends_at: '',
@@ -116,32 +115,6 @@ export default function Create({ types }: Props) {
                                     )}
                                 </div>
 
-                                {/* Type */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="type">
-                                        Type <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={data.type}
-                                        onValueChange={(value) => setData('type', value)}
-                                        disabled={processing}
-                                    >
-                                        <SelectTrigger className={errors.type ? 'border-red-500' : ''}>
-                                            <SelectValue placeholder="Select planner type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {Object.entries(types).map(([key, label]) => (
-                                                <SelectItem key={key} value={key}>
-                                                    {label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.type && (
-                                        <p className="text-sm text-red-600">{errors.type}</p>
-                                    )}
-                                </div>
-
                                 {/* Dates */}
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
@@ -187,7 +160,7 @@ export default function Create({ types }: Props) {
                                     <Checkbox
                                         id="is_public"
                                         checked={data.is_public}
-                                        onCheckedChange={(checked) => setData('is_public', !!checked)}
+                                        onCheckedChange={(checked: boolean) => setData('is_public', !!checked)}
                                         disabled={processing}
                                     />
                                     <div className="grid gap-1.5 leading-none">

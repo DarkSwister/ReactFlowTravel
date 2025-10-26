@@ -18,10 +18,11 @@ const saveFlowToBackend = async (plannerId: number, nodes: Node[], edges: Edge[]
                 viewport: viewport,
             },
             {
-                preserveState: true,
+                preserveState: false,
                 preserveScroll: true,
                 only: [], // Don't reload any page data
                 onSuccess: (page) => {
+
                     resolve(page.props);
                 },
                 onError: (errors) => {
@@ -531,22 +532,22 @@ export const useFlowStore = create<FlowState>()(
                 const state = get();
                 const targetNode = state.nodes.find(node => node.id === nodeId);
                 const groupNode = state.nodes.find(node => node.id === groupId);
-                
-                if (!targetNode || !groupNode || groupNode.type !== 'travel:group') {
+
+                if (!targetNode || !groupNode || groupNode.type !== 'group') {
                     console.warn(`Cannot add node ${nodeId} to group ${groupId}`);
                     return;
                 }
 
                 state.saveToHistory(true);
-                
+
                 const updatedNodes = addNodeToGroupUtil(nodeId, groupId, state.nodes);
                 const arrangedNodes = arrangeNodesInGroup(groupId, updatedNodes, groupNode.width, groupNode.height);
-                
-                set({ 
-                    nodes: arrangedNodes, 
-                    pendingChanges: true 
+
+                set({
+                    nodes: arrangedNodes,
+                    pendingChanges: true
                 });
-                
+
                 state.triggerAutoSave();
                 console.log(`✅ Added node ${nodeId} to group ${groupId}`);
             },
@@ -554,21 +555,21 @@ export const useFlowStore = create<FlowState>()(
             removeNodeFromGroup: (nodeId: string) => {
                 const state = get();
                 const targetNode = state.nodes.find(node => node.id === nodeId);
-                
+
                 if (!targetNode || !targetNode.parentId) {
                     console.warn(`Cannot remove node ${nodeId} from group - not in a group`);
                     return;
                 }
 
                 state.saveToHistory(true);
-                
+
                 const updatedNodes = removeNodeFromGroupUtil(nodeId, state.nodes);
-                
-                set({ 
-                    nodes: updatedNodes, 
-                    pendingChanges: true 
+
+                set({
+                    nodes: updatedNodes,
+                    pendingChanges: true
                 });
-                
+
                 state.triggerAutoSave();
                 console.log(`✅ Removed node ${nodeId} from group`);
             },
@@ -577,27 +578,27 @@ export const useFlowStore = create<FlowState>()(
                 const state = get();
                 const targetNode = state.nodes.find(node => node.id === nodeId);
                 const newGroupNode = state.nodes.find(node => node.id === newGroupId);
-                
-                if (!targetNode || !newGroupNode || newGroupNode.type !== 'travel:group') {
+
+                if (!targetNode || !newGroupNode || newGroupNode.type !== 'group') {
                     console.warn(`Cannot move node ${nodeId} to group ${newGroupId}`);
                     return;
                 }
 
                 state.saveToHistory(true);
-                
+
                 // First remove from current group, then add to new group
-                let updatedNodes = targetNode.parentId ? 
-                    removeNodeFromGroupUtil(nodeId, state.nodes) : 
+                let updatedNodes = targetNode.parentId ?
+                    removeNodeFromGroupUtil(nodeId, state.nodes) :
                     state.nodes;
-                    
+
                 updatedNodes = addNodeToGroupUtil(nodeId, newGroupId, updatedNodes);
                 const arrangedNodes = arrangeNodesInGroup(newGroupId, updatedNodes, newGroupNode.width, newGroupNode.height);
-                
-                set({ 
-                    nodes: arrangedNodes, 
-                    pendingChanges: true 
+
+                set({
+                    nodes: arrangedNodes,
+                    pendingChanges: true
                 });
-                
+
                 state.triggerAutoSave();
                 console.log(`✅ Moved node ${nodeId} to group ${newGroupId}`);
             },

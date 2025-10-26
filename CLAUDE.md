@@ -83,11 +83,6 @@ This is a Laravel + React travel planning application with a sophisticated flow-
 - CSRF handled automatically through Inertia
 - Real-time sync status in UI
 
-**Slice Architecture:**
-- Travel-specific components in `resources/js/slices/travel/`
-- Shared components in `resources/js/shared/`
-- Configurable flow system supporting different "slices"
-
 ### Database Considerations
 
 - Uses UUIDs for primary keys on core models

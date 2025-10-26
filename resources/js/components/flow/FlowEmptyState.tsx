@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plane } from 'lucide-react';
-import { FlowConfig } from '@/shared/types/flowConfig';
+import { FlowConfig } from '@/types/flowConfig.ts';
 
 interface FlowEmptyStateProps {
     show: boolean;

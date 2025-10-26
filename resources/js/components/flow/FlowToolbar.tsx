@@ -1,16 +1,12 @@
 import React from 'react';
 import { Panel } from '@xyflow/react';
-import { Button } from '@/components/ui/button';
-import { Hotel, Plane, Redo, Trash2, Undo, Users, Save, BarChart3 } from 'lucide-react';
-import { FlowConfig } from '@/shared/types/flowConfig';
+import { Button } from '@/components/ui/button.tsx';
+import { Redo, Trash2, Undo, Save, BarChart3 } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { FlowConfig } from '@/types/flowConfig.ts';
 import { Link } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
-
-const iconMap = {
-    Plane,
-    Hotel,
-    Users,
-};
+import { getAvailableNodesList } from '@/nodes';
 
 interface FlowToolbarProps {
     config: FlowConfig;
@@ -21,6 +17,9 @@ export const FlowToolbar: React.FC<FlowToolbarProps> = ({ config, handlers }) =>
     const { auth } = usePage().props as any;
 
     if (!config.showToolbar) return null;
+
+    // Get all available nodes from registry
+    const availableNodes = getAvailableNodesList();
 
     // ✅ Simplified checks
     const hasUndoRedo = handlers.actions &&
@@ -37,10 +36,12 @@ export const FlowToolbar: React.FC<FlowToolbarProps> = ({ config, handlers }) =>
             {/* Left Toolbar */}
             <Panel position="top-left" className="m-2">
                 <div className="flex items-center gap-2 rounded-lg border bg-white p-2 shadow-sm dark:bg-gray-800">
-                    {config.allowNodeCreation && config.availableNodes && (
+                    {config.allowNodeCreation && availableNodes.length > 0 && (
                         <>
-                            {config.availableNodes.map(({ type, label, icon, defaultData }) => {
-                                const IconComponent = iconMap[icon as keyof typeof iconMap];
+                            {availableNodes.map(({ type, label, icon, defaultData }) => {
+                                // Dynamically get icon from lucide-react
+                                const IconComponent = (LucideIcons as any)[icon];
+
                                 return (
                                     <Button
                                         key={type}
@@ -112,7 +113,7 @@ export const FlowToolbar: React.FC<FlowToolbarProps> = ({ config, handlers }) =>
                         <BarChart3 className="h-4 w-4 mr-1" />
                         Analytics
                     </Button>
-                    
+
                     {/* Save Button */}
                     {auth.user && (config.allowNodeEditing || config.allowNodeCreation) && hasSave && (
                         <>
